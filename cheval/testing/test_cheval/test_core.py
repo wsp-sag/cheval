@@ -54,8 +54,10 @@ class TestChevalCore(unittest.TestCase):
 
         # Auto, Auto-carpool, auto-drive, transit, transit-bus, transit-train, train-bus, train-walk
         expected_result = np.float64([0, 0.085207, 0.355547, 0, 0.156274, 0, 0.354937, 0.048035])
+        expected_ls = 1.597835
 
         assert_allclose(test_result, expected_result, rtol=0.00001)
+        assert  abs(expected_ls - test_ls) < 0.000001
 
     def test_saple_once(self):
         pass
