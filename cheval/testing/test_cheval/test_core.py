@@ -57,9 +57,9 @@ class TestChevalCore(unittest.TestCase):
         expected_ls = 1.597835
 
         assert_allclose(test_result, expected_result, rtol=0.00001)
-        assert  abs(expected_ls - test_ls) < 0.000001
+        assert abs(expected_ls - test_ls) < 0.000001
 
-    def test_saple_once(self):
+    def test_sample_once(self):
         pass
 
     def test_sample_multi(self):
