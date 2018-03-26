@@ -14,10 +14,14 @@ TREE_INFO_TYPE = NTuple((nlong[:], nlong[:], ndouble[:]))
 
 @njit(nlong(ndouble[:], ndouble), nogil=True)
 def sample_once(p_array: ndarray, r: float) -> int:
+    r = max(r, MIN_RANDOM_VALUE)
     cumsum = 0.0
-    for index, p in enumerate(p_array):
+    index = 0
+    for p in p_array:
         cumsum += p
-        if r <= cumsum: return index
+        if r <= cumsum:
+            return index
+        index += 1
     return len(p_array) - 1
 
 
