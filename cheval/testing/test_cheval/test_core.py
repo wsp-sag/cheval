@@ -66,7 +66,23 @@ class TestChevalCore(unittest.TestCase):
         pass
 
     def test_logarithmic_search(self):
-        pass
+        cumsums = np.array([0, 0, 0.25, 0.25, 0.25, 0.25, 0.25, 0.5, 0.75, 1.0, 1.0, 1.0], dtype=np.float64)
+
+        expected_samples = [
+            (0.0, 2),
+            (0.2, 2),
+            (0.4, 7),
+            (0.6, 8),
+            (0.8, 9),
+            (0.99, 9)
+        ]
+
+        for random_draw, expected_index in expected_samples:
+            test_result = logarithmic_search(np.float64(random_draw), cumsums)
+            assert test_result == expected_index
+
+            standard_result = bisect_right(cumsums, random_draw)
+            assert test_result == standard_result
 
     def test_simple_sample(self):
         pass
