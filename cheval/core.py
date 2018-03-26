@@ -69,19 +69,19 @@ def nbf_cumsum(array: ndarray):
         array[i] = accum
 
 
-@njit(ndouble[:](ndouble[:], nlong, nlong, maybe(ndouble[:])), nogil=True)
+@njit(nlong[:](ndouble[:], nlong, nlong, maybe(nlong[:])), nogil=True)
 def sample_multi(p_array: ndarray, n: int, random_seed: int, out_array: ndarray=None) -> ndarray:
     np.random.seed(random_seed)
 
     nbf_cumsum(p_array)
 
     if out_array is None:
-        out_array = np.zeros(len(n), dtype=np.int64)
+        out_array = np.zeros(n, dtype=np.int64)
     else:
         assert len(out_array) == n
 
     for i in range(n):
-        r = np.random.uniform(MIN_RANDOM_VALUE, 1.0, 1)
+        r = np.random.uniform(MIN_RANDOM_VALUE, 1.0, 1)[0]
         out_array[i] = logarithmic_search(r, p_array)
     return out_array
 
@@ -195,11 +195,13 @@ def multinomial_multisample(utilities: ndarray, n: int, seed: int, out: ndarray=
     return sample_multi(p_array, n, seed, out), ls
 
 
+@njit(NTuple((nlong, ndouble))(ndouble[:], ndouble, TREE_INFO_TYPE), nogil=True)
 def nested_sample(utilities: ndarray, r: float, tree_info) -> Tuple[int, float]:
     p_array, ls = nested_probabilities(utilities, tree_info)
     return sample_once(p_array, r), ls
 
 
+@njit(NTuple((nlong[:], ndouble))(ndouble[:], TREE_INFO_TYPE, nlong, nlong, maybe(nlong[:])), nogil=True)
 def nested_multisample(utilities: ndarray, tree_info, n: int, seed: int, out: ndarray=None) -> Tuple[ndarray, float]:
     p_array, ls = nested_probabilities(utilities, tree_info)
     return sample_multi(p_array, n, seed, out), ls
@@ -210,7 +212,7 @@ def nested_multisample(utilities: ndarray, tree_info, n: int, seed: int, out: nd
 # region High level functions
 
 
-@njit(nlong[:](ndouble[:], nlong, nlong), parallel=True, nogil=True)
+@njit(nlong[:, :](ndouble[:, :], nlong, nlong), parallel=True, nogil=True)
 def worker_weighted_sample(weights: ndarray, n: int, seed: int) -> ndarray:
     n_rows = weights.shape[0]
     result = np.zeros((n_rows, n), dtype=np.int64)
@@ -221,7 +223,7 @@ def worker_weighted_sample(weights: ndarray, n: int, seed: int) -> ndarray:
         for i in prange(n_rows):
             weight_row = weights[i, :]
             r = r_array[i]
-            result[i, 0], ls = simple_sample(weight_row, r)
+            result[i, 0] = simple_sample(weight_row, r)
     else:
         seed_array = np.random.randint(0, MAX_RANDOM_VALUE, n_rows)
         for i in prange(n_rows):
@@ -270,7 +272,7 @@ def worker_multinomial_probabilities(utilities: ndarray) -> Tuple[ndarray, ndarr
     return result, ls_array
 
 
-@njit(NTuple((nlong[:, :], ndouble[:]))(ndouble[:, :], TREE_INFO_TYPE, nlong, nlong), parallel=True, nogil=True)
+# @njit(NTuple((nlong[:, :], ndouble[:]))(ndouble[:, :], TREE_INFO_TYPE, nlong, nlong), parallel=True, nogil=True)
 def worker_nested_sample(utilities: ndarray, tree_info, n: int, seed: int) -> Tuple[ndarray, ndarray]:
     n_rows = utilities.shape[0]
     result = np.zeros((n_rows, n), dtype=np.int64)
@@ -294,7 +296,7 @@ def worker_nested_sample(utilities: ndarray, tree_info, n: int, seed: int) -> Tu
     return result, ls_array
 
 
-@njit(NTuple((ndouble[:, :], ndouble[:]))(ndouble[:, :], TREE_INFO_TYPE), parallel=True, nogil=True)
+# @njit(NTuple((ndouble[:, :], ndouble[:]))(ndouble[:, :], TREE_INFO_TYPE), parallel=True, nogil=True)
 def worker_nested_probabilities(utilities: ndarray, tree_info) -> Tuple[ndarray, ndarray]:
     n_rows, n_cols = utilities.shape
     result = np.zeros((n_rows, n_cols), dtype=np.float64)
