@@ -60,7 +60,22 @@ class TestChevalCore(unittest.TestCase):
         assert abs(expected_ls - test_ls) < 0.000001
 
     def test_sample_once(self):
-        pass
+        p = np.float64([0, 0, 0.25, 0.00, 0.25, 0.15, 0.35, 0.0])
+        #              [0, 0, 0.25, 0.25, 0.50, 0.65, 1.00, 1.0]
+        #              [0  1    2    3     4     5      6    7]
+
+        expected_samples = [
+            (0.0, 2),
+            (0.1, 2),
+            (0.3, 4),
+            (0.6, 5),
+            (0.7, 6),
+            (1.0, 6)
+        ]
+
+        for i, (random_draw, expected_result) in enumerate(expected_samples):
+            test_result = sample_once(p, random_draw)
+            assert test_result == expected_result, f"Test={i} Expected={expected_result}, Actual={test_result}"
 
     def test_sample_multi(self):
         pass
