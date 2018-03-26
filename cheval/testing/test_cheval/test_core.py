@@ -4,7 +4,7 @@ from bisect import bisect_right
 import numpy as np
 from numpy.testing import assert_allclose
 
-from ...core import sample_once, sample_multi, logarithmic_search, multinomial_probabilities, nested_probabilities
+from ...core import sample_once, sample_multi, logarithmic_search, multinomial_probabilities, nested_probabilities, MIN_RANDOM_VALUE
 from ...tree import ChoiceTree
 
 
@@ -65,16 +65,16 @@ class TestChevalCore(unittest.TestCase):
         #              [0  1    2    3     4     5      6    7]
 
         expected_samples = [
-            (0.0, 2),
-            (0.1, 2),
-            (0.3, 4),
-            (0.6, 5),
-            (0.7, 6),
-            (1.0, 6)
+            (MIN_RANDOM_VALUE, 2),  # 0
+            (0.1, 2),               # 1
+            (0.3, 4),               # 2
+            (0.6, 5),               # 3
+            (0.7, 6),               # 4
+            (1.0, 6)                # 5
         ]
 
         for i, (random_draw, expected_result) in enumerate(expected_samples):
-            test_result = sample_once(p, random_draw)
+            test_result = sample_once.py_func(p, random_draw)
             assert test_result == expected_result, f"Test={i} Expected={expected_result}, Actual={test_result}"
 
     def test_sample_multi(self):
