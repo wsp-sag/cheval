@@ -50,12 +50,12 @@ class TestChevalCore(unittest.TestCase):
     def test_nested_logit(self):
         utilities = np.float64([-0.001, -1.5, -0.5, -0.005, -1, -0.075, -0.3, -0.9])
         tree_info = self._build_nested_tree()
-        test_result = nested_probabilities(utilities, tree_info)
+        test_result, test_ls = nested_probabilities(utilities, tree_info)
 
         # Auto, Auto-carpool, auto-drive, transit, transit-bus, transit-train, train-bus, train-walk
-        expected_result = np.float64([0, 0.0852, 0.3555, 0, 0.1563, 0, 0.3549, 0.0480])
+        expected_result = np.float64([0, 0.085207, 0.355547, 0, 0.156274, 0, 0.354937, 0.048035])
 
-        assert np.allclose(expected_result, test_result)
+        assert_allclose(test_result, expected_result, rtol=0.00001)
 
     def test_saple_once(self):
         pass
