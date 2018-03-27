@@ -78,7 +78,19 @@ class TestChevalCore(unittest.TestCase):
             assert test_result == expected_result, f"Test={i} Expected={expected_result}, Actual={test_result}"
 
     def test_sample_multi(self):
-        pass
+        p = np.float64([0, 0, .25, .25, 0, .5, 0])
+        seed = 12345
+        n = 1000
+
+        test_result = sample_multi.py_func(p, n, seed, None)
+
+        np.random.seed(seed)
+        expected_result = np.zeros(n, np.int64)
+        for i in range(n):
+            r = np.random.uniform(MIN_RANDOM_VALUE, 1, 1)[0]
+            expected_result[i] = sample_once.py_func(p, r)
+
+        assert np.all(test_result == expected_result)
 
     def test_logarithmic_search(self):
         cumsums = np.array([0, 0, 0.25, 0.25, 0.25, 0.25, 0.25, 0.5, 0.75, 1.0, 1.0, 1.0], dtype=np.float64)
@@ -117,4 +129,6 @@ class TestChevalCore(unittest.TestCase):
     def test_nested_multisample(self):
         pass
 
+    def test_multithreaded_stability(self):
+        pass
 
