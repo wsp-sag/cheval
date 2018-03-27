@@ -116,14 +116,12 @@ def multinomial_probabilities(utilities: ndarray) -> Tuple[ndarray, float]:
     return p, ls
 
 
-@njit(NTuple((ndouble[:], ndouble))(ndouble[:], TREE_INFO_TYPE), nogil=True)
-def nested_probabilities(utilities: ndarray, tree_info) -> Tuple[ndarray, float]:
+@njit(NTuple((ndouble[:], ndouble))(ndouble[:], nlong[:], nlong[:], ndouble[:]), nogil=True)
+def nested_probabilities(utilities: ndarray, hierarchy, levels, logsum_scales) -> Tuple[ndarray, float]:
     n_cells = len(utilities)
     probabilities = utilities.copy()
     top_logsum = 0
     logsums = np.zeros(n_cells, dtype=np.float64)
-
-    hierarchy, levels, logsum_scales = tree_info
 
     # Step 1: Exponentiate the utilities and collect logsums
     max_level = levels.max()
@@ -199,15 +197,15 @@ def multinomial_multisample(utilities: ndarray, n: int, seed: int, out: ndarray=
     return sample_multi(p_array, n, seed, out), ls
 
 
-@njit(NTuple((nlong, ndouble))(ndouble[:], ndouble, TREE_INFO_TYPE), nogil=True)
-def nested_sample(utilities: ndarray, r: float, tree_info) -> Tuple[int, float]:
-    p_array, ls = nested_probabilities(utilities, tree_info)
+@njit(NTuple((nlong, ndouble))(ndouble[:], ndouble, nlong[:], nlong[:], ndouble[:]), nogil=True)
+def nested_sample(utilities: ndarray, r: float, parents, levels, ls_scales) -> Tuple[int, float]:
+    p_array, ls = nested_probabilities(utilities, parents, levels, ls_scales)
     return sample_once(p_array, r), ls
 
 
-@njit(NTuple((nlong[:], ndouble))(ndouble[:], TREE_INFO_TYPE, nlong, nlong, maybe(nlong[:])), nogil=True)
-def nested_multisample(utilities: ndarray, tree_info, n: int, seed: int, out: ndarray=None) -> Tuple[ndarray, float]:
-    p_array, ls = nested_probabilities(utilities, tree_info)
+@njit(NTuple((nlong[:], ndouble))(ndouble[:], nlong[:], nlong[:], ndouble[:], nlong, nlong, maybe(nlong[:])), nogil=True)
+def nested_multisample(utilities: ndarray, parents, levels, ls_scales, n: int, seed: int, out: ndarray=None) -> Tuple[ndarray, float]:
+    p_array, ls = nested_probabilities(utilities, parents, levels, ls_scales)
     return sample_multi(p_array, n, seed, out), ls
 
 
@@ -276,9 +274,9 @@ def worker_multinomial_probabilities(utilities: ndarray) -> Tuple[ndarray, ndarr
     return result, ls_array
 
 
-# @njit(NTuple((nlong[:, :], ndouble[:]))(ndouble[:, :], TREE_INFO_TYPE, nlong, nlong), parallel=True, nogil=True)
-def worker_nested_sample(utilities: ndarray, tree_info, n: int, seed: int) -> Tuple[ndarray, ndarray]:
-    n_rows = utilities.shape[0]
+@njit(NTuple((nlong[:, :], ndouble[:]))(ndouble[:, :], nlong[:], nlong[:], ndouble[:], nlong, nlong), parallel=True, nogil=True)
+def worker_nested_sample(utilities: ndarray, parents, levels, ls_scales, n: int, seed: int) -> Tuple[ndarray, ndarray]:
+    n_rows = len(utilities)
     result = np.zeros((n_rows, n), dtype=np.int64)
     ls_array = np.zeros(n_rows, dtype=np.float64)
 
@@ -288,27 +286,28 @@ def worker_nested_sample(utilities: ndarray, tree_info, n: int, seed: int) -> Tu
         for i in prange(n_rows):
             utility_row = utilities[i, :]
             r = r_array[i]
-            result[i, 0], ls = nested_sample(utility_row, r, tree_info)
+            this_result, ls = nested_sample(utility_row, r, parents, levels, ls_scales)
+            result[i, 0] = this_result
             ls_array[i] = ls
     else:
         seed_array = np.random.randint(0, MAX_RANDOM_VALUE, n_rows)
         for i in prange(n_rows):
             utility_row = utilities[i, :]
             seed_i = seed_array[i]
-            _, ls = nested_multisample(utility_row, tree_info, n, seed_i, result[i, :])
+            _, ls = nested_multisample(utility_row, parents, levels, ls_scales, n, seed_i, result[i, :])
             ls_array[i] = ls
     return result, ls_array
 
 
-# @njit(NTuple((ndouble[:, :], ndouble[:]))(ndouble[:, :], TREE_INFO_TYPE), parallel=True, nogil=True)
-def worker_nested_probabilities(utilities: ndarray, tree_info) -> Tuple[ndarray, ndarray]:
+@njit(NTuple((ndouble[:, :], ndouble[:]))(ndouble[:, :], nlong[:], nlong[:], ndouble[:]), parallel=True, nogil=True)
+def worker_nested_probabilities(utilities: ndarray, parents, levels, ls_scales) -> Tuple[ndarray, ndarray]:
     n_rows, n_cols = utilities.shape
     result = np.zeros((n_rows, n_cols), dtype=np.float64)
     ls_array = np.zeros(n_rows, dtype=np.float64)
 
     for i in prange(n_rows):
         utility_row = utilities[i, :]
-        p_array, ls = nested_probabilities(utility_row, tree_info)
+        p_array, ls = nested_probabilities(utility_row, parents, levels, ls_scales)
         result[i, :] = p_array
         ls_array[i] = ls
 
