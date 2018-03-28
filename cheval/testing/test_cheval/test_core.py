@@ -4,7 +4,8 @@ from bisect import bisect_right
 import numpy as np
 from numpy.testing import assert_allclose
 
-from ...core import sample_once, sample_multi, logarithmic_search, multinomial_probabilities, nested_probabilities, MIN_RANDOM_VALUE
+from ...core import (sample_once, sample_multi, logarithmic_search, multinomial_probabilities, nested_probabilities,
+                     simple_probabilities, MIN_RANDOM_VALUE)
 from ...tree import ChoiceTree
 
 
@@ -111,6 +112,15 @@ class TestChevalCore(unittest.TestCase):
 
             standard_result = bisect_right(cumsums, random_draw)
             assert test_result == standard_result
+
+    def test_simple_probabilities(self):
+        weights = self._get_utility_row()
+
+        expected_result = weights / weights.sum()
+
+        test_result = simple_probabilities(weights)
+
+        assert_allclose(test_result, expected_result)
 
     def test_simple_sample(self):
         pass
