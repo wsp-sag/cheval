@@ -79,6 +79,7 @@ class TestChevalCore(unittest.TestCase):
 
     def test_sample_multi(self):
         p = np.float64([0, 0, .25, .25, 0, .5, 0])
+        p2 = p.copy()  # Sample multi mutates the probability array after running, so make a copy now.
         seed = 12345
         n = 1000
 
@@ -88,7 +89,7 @@ class TestChevalCore(unittest.TestCase):
         expected_result = np.zeros(n, np.int64)
         for i in range(n):
             r = np.random.uniform(MIN_RANDOM_VALUE, 1, 1)[0]
-            expected_result[i] = sample_once.py_func(p, r)
+            expected_result[i] = sample_once.py_func(p2, r)
 
         assert np.all(test_result == expected_result)
 
