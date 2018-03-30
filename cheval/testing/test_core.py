@@ -4,9 +4,9 @@ from bisect import bisect_right
 import numpy as np
 from numpy.testing import assert_allclose
 
-from ...core import (sample_once, sample_multi, logarithmic_search, multinomial_probabilities, nested_probabilities,
-                     simple_probabilities, MIN_RANDOM_VALUE)
-from ...tree import ChoiceTree
+from core import (sample_once, sample_multi, logarithmic_search, multinomial_probabilities, nested_probabilities,
+                  simple_probabilities, MIN_RANDOM_VALUE)
+from tree import ChoiceTree
 
 
 class TestChevalCore(unittest.TestCase):

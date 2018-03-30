@@ -2,7 +2,7 @@ import unittest
 import pandas as pd
 import numpy as np
 
-from ...tree import ChoiceTree
+from tree import ChoiceTree
 
 
 class TestTree(unittest.TestCase):
