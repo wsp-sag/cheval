@@ -5,7 +5,8 @@ import numpy as np
 from numpy.testing import assert_allclose
 
 from core import (sample_once, sample_multi, logarithmic_search, multinomial_probabilities, nested_probabilities,
-                  simple_probabilities, MIN_RANDOM_VALUE)
+                  simple_probabilities, MIN_RANDOM_VALUE, simple_sample, simple_multisample,
+                  worker_multinomial_sample, worker_nested_sample)
 from tree import ChoiceTree
 
 
@@ -123,7 +124,20 @@ class TestChevalCore(unittest.TestCase):
         assert_allclose(test_result, expected_result)
 
     def test_simple_sample(self):
-        pass
+        weights = np.float64([2, 4, 1, 1])  # [.25, .5, .125, .125] -> [.25, .75, .875, 1.]
+
+        expected_results = [
+            (MIN_RANDOM_VALUE, 0),
+            (.2, 0),
+            (.4, 1),
+            (.8, 2),
+            (.9, 3),
+            (1., 3)
+        ]
+
+        for i, (r, expected_index) in enumerate(expected_results):
+            test_result = simple_sample(weights, r)
+            assert expected_index == test_result, f"Test={i} Expected={expected_index} Actual={test_result}"
 
     def test_simple_multisample(self):
         pass
