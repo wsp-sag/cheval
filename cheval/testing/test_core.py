@@ -7,10 +7,26 @@ from numpy.testing import assert_allclose
 from core import (
     MIN_RANDOM_VALUE, sample_once, sample_multi, logarithmic_search,
     simple_probabilities, simple_sample, simple_multisample, worker_weighted_sample,
-    multinomial_probabilities, multinomial_sample, multinomial_multisample, worker_multinomial_sample, worker_multinomial_probabilities,
+    multinomial_probabilities, multinomial_sample, multinomial_multisample, worker_multinomial_sample,
+        worker_multinomial_probabilities,
     nested_probabilities, nested_sample, nested_multisample, worker_nested_sample, worker_nested_probabilities
 )
 from tree import ChoiceTree
+
+
+def _cp_midpoints(p_array):
+    cps = np.cumsum(p_array)
+    out = np.full(len(cps) + 1, fill_value=MIN_RANDOM_VALUE)
+    out[1] = cps[0] * 0.5
+    out[2:] = (cps[:-1] + cps[1:]) * 0.5
+
+    result_indices = [0] + list(range(len(cps)))
+    return out, result_indices
+
+
+def _randomize(n, seed):
+    randomizer = np.random.RandomState(seed)
+    return randomizer.uniform(MIN_RANDOM_VALUE, 1.0, n)
 
 
 class TestSharedCore(unittest.TestCase):
@@ -113,16 +129,52 @@ class TestMultinomialCore(unittest.TestCase):
         assert abs(expected_ls - test_ls) < 0.000001
 
     def test_sample_once(self):
-        pass
+        utilities = np.float64([1.678, 1.689, 1.348, 0.903, 1.845, 0.877, 0.704, 0.482])
+        probabilities, _ = multinomial_probabilities(utilities)
+
+        draws, expected_indices = _cp_midpoints(probabilities)
+
+        for n, (draw, expected_index) in enumerate(zip(draws, expected_indices)):
+            test_result, _ = multinomial_sample(utilities, draw)
+            assert test_result == expected_index, f"{n}: Expected={expected_index} Actual={test_result}"
 
     def test_multisample(self):
-        pass
+        utilities = np.float64([1.678, 1.689, 1.348, 0.903, 1.845, 0.877, 0.704, 0.482])
+        probabilities, _ = multinomial_probabilities(utilities)
+
+        n_draws, seed = 100, 1
+
+        test_results, _ = multinomial_multisample(utilities, n_draws, seed, None)
+
+        draws = _randomize(n_draws, seed)
+        for r, test_result in zip(draws, test_results):
+            expected_result, _ = multinomial_sample(utilities, r)
+            assert expected_result == test_result
 
     def test_worker_sampling(self):
-        pass
+        n_rows, n_cols, util_seed, sample_seed = 5, 6, 7, 8
+        utilities = -_randomize((n_rows, n_cols), seed=util_seed)
+
+        test_results, _ = worker_multinomial_sample(utilities, 1, seed=sample_seed)
+
+        draws = _randomize(n_rows, sample_seed)
+        for row in range(n_rows):
+            util_row = utilities[row]
+            r = draws[row]
+            expected_result, _ = multinomial_sample(util_row, r)
+
+            assert test_results[row] == expected_result
 
     def test_worker_probabilities(self):
-        pass
+        n_rows, n_cols, util_seed, sample_seed = 5, 6, 7, 8
+        utilities = -_randomize((n_rows, n_cols), seed=util_seed)
+
+        test_results, _ = worker_multinomial_probabilities(utilities)
+
+        for row in range(n_rows):
+            util_row = utilities[row]
+            expected_result, _ = multinomial_probabilities(util_row)
+            assert_allclose(test_results[row], expected_result)
 
 
 class TestChevalCore(unittest.TestCase):
