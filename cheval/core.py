@@ -73,6 +73,20 @@ def nbf_cumsum(array: ndarray):
         array[i] = accum
 
 
+@njit(nlong[:](nlong, nlong), nogil=True)
+def generate_rand_ints_for_parallel(seed: int, n: int) -> ndarray:
+    """Wrap random sampling in a separate function with parallel=False for stable results"""
+    np.random.seed(seed)
+    return np.random.randint(0, MAX_RANDOM_VALUE, n)
+
+
+@njit(ndouble[:](nlong, nlong), nogil=True)
+def generate_rand_floats_for_parallel(seed: int, n: int) -> ndarray:
+    """Wrap random sampling in a separate function with parallel=False for stable results"""
+    np.random.seed(seed)
+    return np.random.uniform(MIN_RANDOM_VALUE, 1, n)
+
+
 @njit(nlong[:](ndouble[:], nlong, nlong, maybe(nlong[:])), nogil=True)
 def sample_multi(p_array: ndarray, n: int, random_seed: int, out_array: ndarray=None) -> ndarray:
     np.random.seed(random_seed)
@@ -241,16 +255,15 @@ def worker_multinomial_sample(utilities: ndarray, n: int, seed: int) -> Tuple[nd
     result = np.zeros((n_rows, n), dtype=np.int64)
     ls_array = np.zeros(n_rows, dtype=np.float64)
 
-    np.random.seed(seed)
     if n <= 1:
-        r_array = np.random.uniform(MIN_RANDOM_VALUE, 1.0, n_rows)
+        r_array = generate_rand_floats_for_parallel(seed, n_rows)
         for i in prange(n_rows):
             utility_row = utilities[i, :]
             r = r_array[i]
             result[i, 0], ls = multinomial_sample(utility_row, r)
             ls_array[i] = ls
     else:
-        seed_array = np.random.randint(0, MAX_RANDOM_VALUE, n_rows)
+        seed_array = generate_rand_ints_for_parallel(seed, n_rows)
         for i in prange(n_rows):
             utility_row = utilities[i, :]
             seed_i = seed_array[i]
