@@ -16,11 +16,15 @@ from tree import ChoiceTree
 
 def _cp_midpoints(p_array):
     cps = np.cumsum(p_array)
-    out = np.full(len(cps) + 1, fill_value=MIN_RANDOM_VALUE)
-    out[1] = cps[0] * 0.5
-    out[2:] = (cps[:-1] + cps[1:]) * 0.5
+    mask = np.where(p_array > 0)[0]
 
-    result_indices = [0] + list(range(len(cps)))
+    mcps = cps[mask]
+
+    out = np.full(len(mcps) + 1, fill_value=MIN_RANDOM_VALUE)
+    out[1] = mcps[0] * 0.5
+    out[2:] = (mcps[:-1] + mcps[1:]) * 0.5
+
+    result_indices = [mask[0]] + list(mask)
     return out, result_indices
 
 
