@@ -295,7 +295,7 @@ def worker_nested_sample(utilities: ndarray, parents, levels, ls_scales, n: int,
 
     np.random.seed(seed)
     if n <= 1:
-        r_array = np.random.uniform(MIN_RANDOM_VALUE, 1.0, n_rows)
+        r_array = generate_rand_floats_for_parallel(seed, n_rows)
         for i in prange(n_rows):
             utility_row = utilities[i, :]
             r = r_array[i]
@@ -303,7 +303,7 @@ def worker_nested_sample(utilities: ndarray, parents, levels, ls_scales, n: int,
             result[i, 0] = this_result
             ls_array[i] = ls
     else:
-        seed_array = np.random.randint(0, MAX_RANDOM_VALUE, n_rows)
+        seed_array = generate_rand_ints_for_parallel(seed, n_rows)
         for i in prange(n_rows):
             utility_row = utilities[i, :]
             seed_i = seed_array[i]
