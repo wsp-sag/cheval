@@ -170,7 +170,7 @@ class TestMultinomialCore(unittest.TestCase):
             assert test_results[row] == expected_result
 
     def test_worker_probabilities(self):
-        n_rows, n_cols, util_seed, sample_seed = 5, 6, 7, 8
+        n_rows, n_cols, util_seed = 5, 6, 7
         utilities = -_randomize((n_rows, n_cols), seed=util_seed)
 
         test_results, _ = worker_multinomial_probabilities(utilities)
@@ -181,7 +181,7 @@ class TestMultinomialCore(unittest.TestCase):
             assert_allclose(test_results[row], expected_result)
 
 
-class TestChevalCore(unittest.TestCase):
+class TestNestedCore(unittest.TestCase):
 
     def _build_nested_tree(self):
         tree = ChoiceTree()
@@ -212,14 +212,55 @@ class TestChevalCore(unittest.TestCase):
         assert abs(expected_ls - test_ls) < 0.000001
 
     def test_sample_once(self):
-        pass
+        utilities = np.float64([-0.001, -1.5, -0.5, -0.005, -1, -0.075, -0.3, -0.9])
+        tree_info = self._build_nested_tree()
+
+        probabilities, _ = nested_probabilities(utilities, *tree_info)
+
+        draws, expected_indices = _cp_midpoints(probabilities)
+
+        for n, (draw, expected_index) in enumerate(zip(draws, expected_indices)):
+            test_result, _ = nested_sample(utilities, draw, *tree_info)
+            assert test_result == expected_index, f"Test {n}: Expected={expected_index} Actual={test_result}"
 
     def test_multisample(self):
-        pass
+        utilities = np.float64([-0.001, -1.5, -0.5, -0.005, -1, -0.075, -0.3, -0.9])
+        tree_info = self._build_nested_tree()
+        probabilities, _ = nested_probabilities(utilities, *tree_info)
+
+        n_draws, seed = 100, 1
+
+        test_results, _ = nested_multisample(utilities, *tree_info, n_draws, seed, None)
+
+        draws = _randomize(n_draws, seed)
+        for r, test_result in zip(draws, test_results):
+            expected_result, _ = nested_sample(utilities, r, *tree_info)
+            assert expected_result == test_result
 
     def test_worker_sampling(self):
-        pass
+        n_rows, n_cols, util_seed, sample_seed = 7, 8, 9, 10
+        utilities = -_randomize((n_rows, n_cols), seed=util_seed)
+        tree_info = self._build_nested_tree()
+
+        test_results, _ = worker_nested_sample(utilities, *tree_info, 1, seed=sample_seed)
+
+        draws = _randomize(n_rows, sample_seed)
+        for row in range(n_rows):
+            util_row = utilities[row]
+            r = draws[row]
+            expected_result, _ = nested_sample(util_row, r, *tree_info)
+
+            assert test_results[row] == expected_result
 
     def test_worker_probabilities(self):
-        pass
+        n_rows, n_cols, util_seed = 7, 8, 9
+        utilities = -_randomize((n_rows, n_cols), seed=util_seed)
+        tree_info = self._build_nested_tree()
+
+        test_results, _ = worker_nested_probabilities(utilities, *tree_info)
+
+        for row in range(n_rows):
+            util_row = utilities[row]
+            expected_result, _ = nested_probabilities(util_row, *tree_info)
+            assert_allclose(test_results[row], expected_result)
 
