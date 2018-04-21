@@ -8,7 +8,7 @@ from core import (
     MIN_RANDOM_VALUE, sample_once, sample_multi, logarithmic_search,
     simple_probabilities, simple_sample, simple_multisample, worker_weighted_sample,
     multinomial_probabilities, multinomial_sample, multinomial_multisample, worker_multinomial_sample,
-        worker_multinomial_probabilities,
+    worker_multinomial_probabilities,
     nested_probabilities, nested_sample, nested_multisample, worker_nested_sample, worker_nested_probabilities
 )
 from tree import ChoiceTree
@@ -183,7 +183,8 @@ class TestMultinomialCore(unittest.TestCase):
 
 class TestNestedCore(unittest.TestCase):
 
-    def _build_nested_tree(self):
+    @staticmethod
+    def _build_nested_tree():
         tree = ChoiceTree()
 
         auto = tree.add('auto', logsum_scale=0.7)
@@ -263,4 +264,3 @@ class TestNestedCore(unittest.TestCase):
             util_row = utilities[row]
             expected_result, _ = nested_probabilities(util_row, *tree_info)
             assert_allclose(test_results[row], expected_result)
-
