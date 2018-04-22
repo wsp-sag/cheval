@@ -24,11 +24,9 @@ class Expression(object):
         self._chained_symbols: Dict[str, ChainedSymbol] = transformer.chained_symbols
         self._dict_literals: Dict[str, pd.Series] = transformer.dict_literals
 
-    def itersymbols(self, literals=False):
+    def itersymbols(self):
         yield from self._simple_symbols
         yield from self._chained_symbols.keys()
-        if literals:
-            yield from self._dict_literals.keys()
 
     @property
     def raw(self) -> str: return self._raw
@@ -57,11 +55,9 @@ class ExpressionGroup(object):
 
             self._dict_literals.append(transformer.dict_literals)
 
-    def itersymbols(self, literals=False):
+    def itersymbols(self):
         yield from self._simple_symbols
         yield from self._chained_symbols.keys()
-        if literals:
-            for d in self._dict_literals: yield from d.keys()
 
     @property
     def raw(self) -> List[str]: return self._raw[...]
