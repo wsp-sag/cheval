@@ -3,8 +3,7 @@ import astor
 
 import pandas as pd
 
-from .parsing.ast_transformer import ExpressionParser
-from .parsing.expr_items import ChainedSymbol
+from .parsing import ExpressionParser, ChainedSymbol
 
 from typing import Dict, Set, Iterable, List
 
