@@ -17,6 +17,9 @@ class AbstractSymbol(object, metaclass=abc.ABCMeta):
     @abc.abstractmethod
     def get(self) -> Union[float, np.ndarray]: pass
 
+    @abc.abstractclassmethod
+    def empty(self): pass
+
 
 class NumberSymbol(AbstractSymbol):
     def __init__(self, parent: 'EvaluationContext', name: str):
@@ -29,6 +32,8 @@ class NumberSymbol(AbstractSymbol):
     def get(self):
         assert self._val is not None
         return self._val
+
+    def empty(self): self._val = None
 
 
 class VectorSymbol(AbstractSymbol):
@@ -61,6 +66,8 @@ class VectorSymbol(AbstractSymbol):
 
     def get(self): return self._raw_array
 
+    def empty(self): self._raw_array = None
+
 
 class TableSymbol(AbstractSymbol):
 
@@ -78,7 +85,10 @@ class TableSymbol(AbstractSymbol):
         raise NotImplementedError()
 
     def get(self):
-        return NotImplementedError()
+        raise NotImplementedError()
+
+    def empty(self):
+        raise NotImplementedError()
 
 
 class MatrixSymbol(AbstractSymbol):
@@ -118,12 +128,14 @@ class MatrixSymbol(AbstractSymbol):
 
     def get(self): return self._matrix
 
+    def empty(self): self._matrix = None
+
 
 class EvaluationContext(object):
 
-    def __init__(self):
-        self._row_index: pd.Index = None
-        self._col_index: pd.Index = None
+    def __init__(self, *, rows_index: pd.Index=None, col_index: pd.Index=None):
+        self._row_index: pd.Index = rows_index
+        self._col_index: pd.Index = col_index
         self._symbols: Dict[str, AbstractSymbol] = {}
 
     @property
@@ -132,30 +144,47 @@ class EvaluationContext(object):
     @property
     def cols(self): return self._col_index
 
+    def empty(self):
+        """
+        Empties any symbols that have been defined, de-referencing any stored data. This can free up memory, if
+        there are no other references.
+
+        This method also gets called when the row or column indexes are changed.
+        """
+        for symbol in self._symbols.values():
+            symbol.empty()
+
+    def reset(self):
+        """
+        Completely removed any declared symbols, regardless of whether they have been defined or not.
+        """
+        self._symbols.clear()
+
     def define_rows(self, index: pd.Index):
-        pass
+        self.empty()
+        self._row_index = pd.Index(index)
 
     def define_columns(self, index: pd.Index):
-        pass
+        self.empty()
+        self._col_index = pd.Index(index)
+
+    # region Symbol declarations
 
     def declare_number(self, name: str):
-        pass
+        self._symbols[name] = NumberSymbol(self, name)
 
     def declare_vector(self, name: str, orientation: int):
-        pass
+        self._symbols[name] = VectorSymbol(self, name, orientation)
 
     def declare_table(self, name: str, orientation: int, mandatory_attributes: Set[str]=None,
                       allow_links=True):
-        pass
+        self._symbols[name] = TableSymbol(self, name, orientation, mandatory_attributes, allow_links)
 
     def declare_matrix(self, name: str, allow_transpose=True):
-        pass
+        self._symbols[name] = MatrixSymbol(self, name, allow_transpose)
+
+    # endregion
 
     def define_symbol(self, name: str, data):
-        pass
+        self._symbols[name].fill(data)
 
-    def __iter__(self):
-        pass
-
-    def __getitem__(self, item):
-        pass
