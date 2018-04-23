@@ -9,6 +9,10 @@ MAX_RANDOM_VALUE = np.iinfo(np.int32).max
 
 TREE_INFO_TYPE = NTuple((nlong[:], nlong[:], ndouble[:]))
 
+
+class UtilityBoundsError(ValueError):
+    pass
+
 # region Sampling
 
 
@@ -124,6 +128,9 @@ def multinomial_probabilities(utilities: ndarray) -> Tuple[ndarray, float]:
         ls += expu
         p[i] = expu
 
+    if ls <= 0:
+        raise UtilityBoundsError("MNL utilities all exceeded minimum value (Logsum == 0.0)")
+
     for i in range(n_cols):
         p[i] = p[i] / ls
 
@@ -161,6 +168,8 @@ def nested_probabilities(utilities: ndarray, hierarchy, levels, logsum_scales) -
     # Step 2: Use logsums to compute conditional probabilities
     for index, parent in enumerate(hierarchy):
         ls = top_logsum if parent == -1 else logsums[parent]
+        if ls <= 0:
+            raise UtilityBoundsError("Nested logit utilities in nest all exceeded minimum value (logsum == 0)")
         probabilities[index] = probabilities[index] / ls
 
     # Step 3: Compute absolute probabilities for child nodes, collecting parent nodes
