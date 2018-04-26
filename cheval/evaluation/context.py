@@ -1,8 +1,11 @@
-from typing import Set, Any, Union, Dict
+from typing import Set, Any, Union, Dict, List, Tuple
 import abc
 
 import pandas as pd
 import numpy as np
+
+from .parsing import ChainedSymbol, ChainTuple, NAN_STR
+from.expressions import Expression, ExpressionGroup
 
 
 class AbstractSymbol(object, metaclass=abc.ABCMeta):
@@ -15,7 +18,7 @@ class AbstractSymbol(object, metaclass=abc.ABCMeta):
     def fill(self, data): pass
 
     @abc.abstractmethod
-    def get(self) -> Union[float, np.ndarray]: pass
+    def get(self, **kwargs) -> Union[float, np.ndarray]: pass
 
     @abc.abstractclassmethod
     def empty(self): pass
@@ -84,8 +87,8 @@ class TableSymbol(AbstractSymbol):
     def fill(self, data):
         raise NotImplementedError()
 
-    def get(self):
-        raise NotImplementedError()
+    def get(self, chain: ChainTuple=None):
+        assert chain is not None
 
     def empty(self):
         raise NotImplementedError()
@@ -188,3 +191,61 @@ class EvaluationContext(object):
     def define_symbol(self, name: str, data):
         self._symbols[name].fill(data)
 
+    def validate_expr(self, expressions: Union[str, List[str], Expression, ExpressionGroup]):
+        item, _ = self._prepare_expressions(expressions)
+        self._validate_decalred(item)
+
+        return item
+
+    def evaluate(self, expressions: Union[str, List[str], Expression, ExpressionGroup]):
+        item, multile_statements = self._prepare_expressions(expressions)
+        self._validate_decalred(item)
+        self._validate_defined(item)
+
+    def _prepare_expressions(self, item) -> Tuple[Union[Expression, ExpressionGroup], bool]:
+        # Parse if neccessary
+        if isinstance(item, str):
+            return Expression(item), False
+        elif isinstance(item, Expression):
+            return item, False
+        elif isinstance(item, ExpressionGroup):
+            return item, True
+        else:
+            return ExpressionGroup(item), True
+
+    def _validate_decalred(self, e: Union[Expression, ExpressionGroup]):
+        for symbol in e.itersymbols():
+            assert symbol in self._symbols, "Symbol '%s' is not recognized" % symbol
+
+    def _validate_defined(self, e: Union[Expression, ExpressionGroup]):
+        for name, symbol_e in e.iterchained():
+            symbol_self = self._symbols[name]
+            assert isinstance(symbol_self, TableSymbol)
+
+        # TODO: Review the inverse, e.g. TableSymbols used simply
+
+    def _eval_single(self, e: Expression):
+        local_dict = self._prepare_locals(e)
+        for substitution, series in e.iterdicts():
+            ndarray = self._align_series(series)
+            local_dict[substitution] = ndarray
+
+    def _eval_group(self, e: ExpressionGroup):
+        local_dict = self._prepare_locals(e)
+
+
+
+    def _prepare_locals(self, e: Union[Expression, ExpressionGroup]) -> Dict[str, np.ndarray]:
+        local_dict = {NAN_STR: np.nan}
+        for name in e.itersimple():
+            symbol = self._symbols[name]
+            local_dict[name] = symbol.get()
+
+        for name, chain in e.iterchained():
+            symbol = self._symbols[name]
+            local_dict[name] = symbol.get(chain=chain)
+
+        return local_dict
+
+    def _align_series(self, s: pd.Series) -> np.ndarray:
+        return s.reindex(self._col_index, fill_value=0).values

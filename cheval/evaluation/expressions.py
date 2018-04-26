@@ -27,6 +27,15 @@ class Expression(object):
         yield from self._simple_symbols
         yield from self._chained_symbols.keys()
 
+    def iterchained(self):
+        yield from self._chained_symbols.items()
+
+    def itersimple(self):
+        yield from self._simple_symbols
+
+    def iterdicts(self):
+        yield from self._dict_literals.items()
+
     @property
     def raw(self) -> str: return self._raw
 
@@ -57,6 +66,15 @@ class ExpressionGroup(object):
     def itersymbols(self):
         yield from self._simple_symbols
         yield from self._chained_symbols.keys()
+
+    def iterchained(self):
+        yield from self._chained_symbols.items()
+
+    def itersimple(self):
+        yield from self._simple_symbols
+
+    def iterdicts(self, i: int):
+        yield from self._dict_literals[i].items()
 
     @property
     def raw(self) -> List[str]: return self._raw[...]
