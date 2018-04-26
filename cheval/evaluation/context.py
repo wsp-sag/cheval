@@ -3,9 +3,12 @@ import abc
 
 import pandas as pd
 import numpy as np
+import numexpr as ne
 
 from .parsing import ChainedSymbol, ChainTuple, NAN_STR
 from.expressions import Expression, ExpressionGroup
+
+_OUT_STR = "__OUT"
 
 
 class AbstractSymbol(object, metaclass=abc.ABCMeta):
@@ -215,7 +218,7 @@ class EvaluationContext(object):
 
     def _validate_decalred(self, e: Union[Expression, ExpressionGroup]):
         for symbol in e.itersymbols():
-            assert symbol in self._symbols, "Symbol '%s' is not recognized" % symbol
+            assert symbol in self._symbols, f"Symbol '{symbol}' is not recognized"
 
     def _validate_defined(self, e: Union[Expression, ExpressionGroup]):
         for name, symbol_e in e.iterchained():
@@ -224,28 +227,55 @@ class EvaluationContext(object):
 
         # TODO: Review the inverse, e.g. TableSymbols used simply
 
-    def _eval_single(self, e: Expression):
-        local_dict = self._prepare_locals(e)
+    def _eval_single(self, e: Expression, precision: int=8) -> pd.DataFrame:
+        utilities = np.zeros([len(self._row_index), len(self._col_index)], dtype="f%s" % precision)
+        local_dict = self._prepare_locals(e, utilities)
+
         for substitution, series in e.iterdicts():
-            ndarray = self._align_series(series)
-            local_dict[substitution] = ndarray
-
-    def _eval_group(self, e: ExpressionGroup):
-        local_dict = self._prepare_locals(e)
-
-
-
-    def _prepare_locals(self, e: Union[Expression, ExpressionGroup]) -> Dict[str, np.ndarray]:
-        local_dict = {NAN_STR: np.nan}
-        for name in e.itersimple():
-            symbol = self._symbols[name]
-            local_dict[name] = symbol.get()
+            local_dict[substitution] = self._align_series(series)
 
         for name, chain in e.iterchained():
             symbol = self._symbols[name]
-            local_dict[name] = symbol.get(chain=chain)
+            local_dict[chain.substitution] = symbol.get(chain=chain)
+
+        self._kernel_eval(e.transformed, local_dict, utilities)
+        return self._finalize_labels(utilities)
+
+    def _eval_group(self, e: ExpressionGroup, precision: int=8) -> pd.DataFrame:
+        utilities = np.zeros([len(self._row_index), len(self._col_index)], dtype="f%s" % precision)
+        local_dict = self._prepare_locals(e, utilities)
+        added = set()
+        for i, (raw, transformed) in enumerate(zip(e.raw, e.transformed)):
+            for name, chain in e.iterchained(i):
+                symbol = self._symbols[name]
+                local_dict[chain.substitution] = symbol.get(chain=chain)
+                added.add(chain.substitution)
+
+            for substitution, series in e.iterdicts(i):
+                local_dict[substitution] = self._align_series(series)
+                added.add(substitution)
+
+            self._kernel_eval(transformed, local_dict, utilities)
+
+            while added: local_dict.pop(added.pop())  # Clear expression-specific symbols
+
+        return self._finalize_labels(utilities)
+
+    def _prepare_locals(self, e: Union[Expression, ExpressionGroup], utilities: np.ndarray) -> Dict[str, np.ndarray]:
+        local_dict = {NAN_STR: np.nan, _OUT_STR: utilities}
+        for name in e.itersimple():
+            symbol = self._symbols[name]
+            local_dict[name] = symbol.get()
 
         return local_dict
 
     def _align_series(self, s: pd.Series) -> np.ndarray:
         return s.reindex(self._col_index, fill_value=0).values
+
+    def _kernel_eval(self, transformed_expr: str, local_dict: Dict[str, np.ndarray], out: np.ndarray):
+        expr_to_run = f"{_OUT_STR} + {transformed_expr}"
+        ne.evaluate(expr_to_run, local_dict=local_dict, out=out)
+
+    def _finalize_labels(self, utilities: np.ndarray) -> pd.DataFrame:
+        df = pd.DataFrame(utilities, index=self._row_index, columns=self._col_index)
+        return df
