@@ -30,13 +30,14 @@ _SUPPORTED_AGGREGATIONS = {
 
 class ExpressionParser(ast.NodeTransformer):
 
-    def __init__(self, prior_simple: Set[str]=None, prior_chained: Dict[str, ChainedSymbol]=None):
+    def __init__(self, prior_simple: Set[str]=None, prior_chained: Set[str]=None):
         self.dict_literals: Dict[str, pd.Series] = {}
 
         # Optionally, use an ongoing collection of simple and chained symbols to enforce consistent usage
         # across a group of expressions
         self.simple_symbols: Set[str] = set() if prior_simple is None else prior_simple
-        self.chained_symbols: Dict[str, ChainedSymbol] = {} if prior_chained is None else prior_chained
+        self.all_chained_symbols = prior_chained if prior_chained is not None else set()
+        self.chained_symbols: Dict[str, ChainedSymbol] = {}
 
     def visit(self, node):
         return self.__get_visitor(node)(node)
@@ -154,7 +155,7 @@ class ExpressionParser(ast.NodeTransformer):
         if symbol_name.lower() in _NAN_REPRESENTATIONS:
             # Allow None or NaN or nan to mean 'null'
             node.id = NAN_STR
-        elif symbol_name in self.chained_symbols:
+        elif symbol_name in self.all_chained_symbols:
             raise UnsupportedSyntaxError("Inconsistent use for symbol '%s'" % symbol_name)
         else:
             self.simple_symbols.add(symbol_name)
@@ -175,6 +176,7 @@ class ExpressionParser(ast.NodeTransformer):
         else:
             container = ChainedSymbol(name)
             self.chained_symbols[name] = container
+        self.all_chained_symbols.add(name)
         substitution = container.add_chain(chain)
 
         return ast.Name(substitution, ast.Load())
@@ -215,7 +217,7 @@ class ExpressionParser(ast.NodeTransformer):
         else:
             container = ChainedSymbol(name)
             self.chained_symbols[name] = container
-
+        self.all_chained_symbols.add(name)
         substitution = container.add_chain(chain, func_name, arg_expression)
 
         new_node = ast.Name(substitution, ast.Load())

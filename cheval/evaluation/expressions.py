@@ -50,25 +50,27 @@ class ExpressionGroup(object):
         self._raw = []
         self._transformed = []
         self._simple_symbols: Set[str] = set()
-        self._chained_symbols: Dict[str, ChainedSymbol] = {}
+        self._shared_chains: Set[str] = set()
+        self._chained_symbols: List[Dict[str, ChainedSymbol]] = []
         self._dict_literals: List[Dict[str, pd.Series]] = []
 
         for expression in expressions:
             self._raw.append(expression)
 
             tree = ast.parse(expression, mode='eval').body
-            transformer = ExpressionParser(self._simple_symbols, self._chained_symbols)
+            transformer = ExpressionParser(self._simple_symbols, self._shared_chains)
             new_tree = transformer.visit(tree)
             self._transformed.append(astor.to_source(new_tree))
 
             self._dict_literals.append(transformer.dict_literals)
+            self._chained_symbols.append(transformer.chained_symbols)
 
     def itersymbols(self):
         yield from self._simple_symbols
-        yield from self._chained_symbols.keys()
+        yield from self._shared_chains
 
-    def iterchained(self):
-        yield from self._chained_symbols.items()
+    def iterchained(self, i: int):
+        yield from self._chained_symbols[i].items()
 
     def itersimple(self):
         yield from self._simple_symbols
