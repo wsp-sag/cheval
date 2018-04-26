@@ -207,6 +207,9 @@ class ExpressionParser(ast.NodeTransformer):
             raise UnsupportedSyntaxError("Star-args or star-kwargs are not supported inside aggregations")
         arg_expression = astor.to_source(call_node.args[0])
 
+        if name in self.simple_symbols:
+            raise UnsupportedSyntaxError("Inconsistent usage of symbol '%s'" % name)
+
         if name in self.chained_symbols:
             container = self.chained_symbols[name]
         else:
