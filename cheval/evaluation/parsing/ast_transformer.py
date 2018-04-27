@@ -118,6 +118,13 @@ class ExpressionParser(ast.NodeTransformer):
             return node.id
         if isinstance(node, ast.Str):
             return node.s
+        if isinstance(node, ast.Attribute):
+            keylist = deque()
+            while not isinstance(node, ast.Name):
+                keylist.appendleft(node.attr)
+                node = node.value
+            keylist.appendleft(node.id)
+            return tuple(keylist)
         raise UnsupportedSyntaxError("Dict key of type '%s' unsupported" % node)
 
     def visit_dict(self, node):
