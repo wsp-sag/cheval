@@ -115,17 +115,38 @@ class ExpressionParser(ast.NodeTransformer):
     @staticmethod
     def __get_dict_key(node):
         if isinstance(node, ast.Name):
-            return node.id
+            return node.id, 1
         if isinstance(node, ast.Str):
-            return node.s
+            return node.s, 1
         if isinstance(node, ast.Attribute):
             keylist = deque()
             while not isinstance(node, ast.Name):
                 keylist.appendleft(node.attr)
                 node = node.value
             keylist.appendleft(node.id)
-            return tuple(keylist)
+            return tuple(keylist), len(keylist)
         raise UnsupportedSyntaxError("Dict key of type '%s' unsupported" % node)
+
+    @staticmethod
+    def __resolve_key_levels(keys: list, max_level: int):
+        assert max_level >= 1
+        resovled_keys = []
+        for key in keys:
+            # Convert to list to pad if needed
+            converted = list(key) if isinstance(key, tuple) else [key]
+            length = len(converted)
+
+            if max_level == 1:
+                if length != 1:
+                    raise UnsupportedSyntaxError("Inconsistent usage of multi-item keys")
+                resovled_keys.append(converted[0])  # Convert to singleton for consistency
+            elif length <= max_level:
+                # Applies to top-level
+                for _ in range(max_level - length): converted.append('.')
+                resovled_keys.append(tuple(converted))
+            else:
+                raise NotImplementedError("This should never happen. Length=%s Max length=%s" % (length, max_level))
+        return resovled_keys
 
     def visit_dict(self, node):
         substitution = '__dict%s' % len(self.dict_literals)
@@ -143,14 +164,25 @@ class ExpressionParser(ast.NodeTransformer):
                 else:
                     raise ValueError()
 
-            keys = [self.__get_dict_key(key) for key in node.keys]
+            keys, max_level = [], 0
+            for key_node in node.keys:
+                key, level = self.__get_dict_key(key_node)
+                max_level = max(max_level, level)
+                keys.append(key)
+            resolved = self.__resolve_key_levels(keys, max_level)
+            if max_level == 1:
+                index = pd.Index(resolved)
+            else:
+                index = pd.MultiIndex.from_tuples(resolved)
+
+            s = pd.Series(values, index=index)
+            self.dict_literals[substitution] = s
+
+            return new_node
+
         except (ValueError, AssertionError):
+            # Catch simple errors and emit them as syntax errors
             raise UnsupportedSyntaxError("Dict literals are supported for numeric values only")
-
-        s = pd.Series(values, index=keys)
-        self.dict_literals[substitution] = s
-
-        return new_node
 
     # endregion
 
