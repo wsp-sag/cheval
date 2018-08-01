@@ -86,15 +86,26 @@ class TableSymbol(AbstractSymbol):
         if mandatory_attributes is None: mandatory_attributes = set()
         self._mandatory_attributes = mandatory_attributes
         self._allow_links = bool(allow_links)
+        self._table: pd.DataFrame = None
 
     def fill(self, data):
-        raise NotImplementedError()
+        assert isinstance(data, pd.DataFrame)
+        index_to_check = self._parent.cols if self._orientation else self._parent.rows
+        assert data.index.equals(index_to_check), "DataFrame index does not match context rows or columns"
+
+        for column in self._mandatory_attributes:
+            assert column in data, f"Mandatory attribute {column} not found in DataFrame"
+
+        if not self._allow_links and not isinstance(data, LinkedDataFrame):
+            raise TypeError(f"LinkedDataFrames not allowed for symbol {self._name}")
+
+        self._table = data
 
     def get(self, chain: ChainTuple=None):
         assert chain is not None
 
     def empty(self):
-        raise NotImplementedError()
+        self._table = None
 
 
 class MatrixSymbol(AbstractSymbol):
