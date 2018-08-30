@@ -203,6 +203,23 @@ class EvaluationContext(object):
     # endregion
 
     def define_symbol(self, name: str, data):
+        """
+        Defines a symbol that has already been declared, associating it with some actual data.
+
+        Args:
+            name (str): The name of an already-declared symbol.
+            data: Data type to associate with the symbol. Acceptable values depend upon the type of symbol declared.
+                Refer to notes below for acceptad types.
+
+        Raises:
+            KeyError: When the symbol is not found in the current context.
+            TypeError:
+
+        Notes:
+            Number symbols expect a single numerical value and are cast to float.
+            Vector symbols expect a 1D array of values, stored as Numpy ndarrays or Pandas Series.
+
+        """
         self._symbols[name].fill(data)
 
     def validate_expr(self, expressions: Union[str, List[str], Expression, ExpressionGroup]):
