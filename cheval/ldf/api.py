@@ -59,25 +59,34 @@ class _IndexMeta:
 
 
 class _LinkMeta:
+    owner: 'LinkedDataFrame'
     other: Union['LinkedDataFrame', DataFrame]
-    other_has_links: bool
+    _other_has_links: bool
     aggregation_required: bool
     self_meta: _IndexMeta
     other_meta: _IndexMeta
     flat_indexer: Optional[ndarray]
 
-    def __init__(self, owner,  other, self_labels: Union[List[str], str], self_from_row_labels: bool,
-                 other_labels: Union[List[str], str], other_from_row_labels: bool, precompute: bool=True):
-        self.owner: 'LinkedDataFrame' = owner
-        self.other = other
-        self.self_meta = _IndexMeta(self_labels, self_from_row_labels)
-        self.other_meta = _IndexMeta(other_labels, other_from_row_labels)
-        self.self_meta.validate(owner)
-        self.other_meta.validate(other)
-        self.flat_indexer = None
-        self._other_has_links = isinstance(other, LinkedDataFrame)
+    @staticmethod
+    def create(owner,  other, self_labels: Union[List[str], str], self_from_row_labels: bool,
+               other_labels: Union[List[str], str], other_from_row_labels: bool, precompute: bool=True) -> '_LinkMeta':
+        self_meta = _IndexMeta(self_labels, self_from_row_labels)
+        other_meta = _IndexMeta(other_labels, other_from_row_labels)
+        other_has_links = isinstance(other, LinkedDataFrame)
 
-        self._determine_aggregation(precompute)
+        link = _LinkMeta(owner, other, self_meta, other_meta, other_has_links )
+        link._determine_aggregation(precompute)
+
+        return link
+
+    def __init__(self, owner, other, self_meta, other_meta, other_has_links):
+        self.owner = owner
+        self.other = other
+        self.self_meta = self_meta
+        self.other_meta = other_meta
+        self._other_has_links = other_has_links
+        self.aggregation_required = False
+        self.flat_indexer = None
 
     def _determine_aggregation(self, precompute):
         self_indexer = self.self_meta.get_indexer(self.owner)
@@ -125,8 +134,9 @@ class _LinkMeta:
         self._make_indexer(*self._get_indexers())
 
     def copy(self, indices=None) -> '_LinkMeta':
-        copied = _LinkMeta(self.owner, self.other, self.self_meta.labels, self.self_meta.from_row_labels,
-                           self.other_meta.labels, self.other_meta.from_row_labels)
+        copied = _LinkMeta(self.owner, self.other, self.self_meta, self.other_meta, self._other_has_links)
+        copied.aggregation_required = self.aggregation_required
+
         if indices is not None and self.flat_indexer is not None:
             copied.flat_indexer = self.flat_indexer[indices]
 
@@ -236,7 +246,8 @@ class LinkedDataFrame(DataFrame):
         else:
             other_labels, other_from_index = on_other, False
 
-        link_data = _LinkMeta(self, other, self_labels, self_from_index, other_labels, other_from_index, precompute)
+        link_data = _LinkMeta.create(self, other, self_labels, self_from_index, other_labels, other_from_index,
+                                     precompute)
         self.__links[name] = link_data
         if name.isidentifier():
             self.__identified_links.add(name)
