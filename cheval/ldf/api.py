@@ -432,6 +432,7 @@ class LinkedDataFrame(DataFrame):
                 grouped = evaluation.groupby(grouper)
                 column = getattr(grouped, self._func_name)().values.astype(float)
 
+                # TODO: Add support for non-numerics
                 fill_value = np.nan
                 return self._owner._resolve_history(column, fill_value)
 
