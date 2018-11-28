@@ -66,6 +66,7 @@ class _LinkMeta:
     self_meta: _IndexMeta
     other_meta: _IndexMeta
     flat_indexer: Optional[ndarray]
+    other_grouper: Optional[ndarray]
 
     @staticmethod
     def create(owner,  other, self_labels: Union[List[str], str], self_from_row_labels: bool,
@@ -87,6 +88,7 @@ class _LinkMeta:
         self._other_has_links = other_has_links
         self.aggregation_required = False
         self.flat_indexer = None
+        self.other_grouper = None
 
     def _determine_aggregation(self, precompute):
         self_indexer = self.self_meta.get_indexer(self.owner)
@@ -113,10 +115,10 @@ class _LinkMeta:
 
     def _make_indexer(self, self_indexer: Index, other_indexer: Index):
         if self.aggregation_required:
-            # 0-based group number. Mostly faster when using Multi-Index lookups
-            self.flat_indexer = self.other.groupby(other_indexer).ngroup().values
+            flat_grouper, group_labels = other_indexer.factorize()
+            self.other_grouper = flat_grouper
+            self.flat_indexer = group_labels.get_indexer_for(self_indexer)
         else:
-            # 0-based offset from the start of the DataFrame. Very fast lookup
             self.flat_indexer = other_indexer.get_indexer(self_indexer)
 
     @property
@@ -139,6 +141,9 @@ class _LinkMeta:
 
         if indices is not None and self.flat_indexer is not None:
             copied.flat_indexer = self.flat_indexer[indices]
+
+        if self.other_grouper is not None:
+            copied.other_grouper = self.other_grouper
 
         return copied
 
@@ -420,15 +425,15 @@ class LinkedDataFrame(DataFrame):
             def __call__(self, expr="1"):
                 top = self._owner._top
                 df = top.other
-                grouper = top.flat_indexer
+                grouper = top.other_grouper
                 evaluation = df.eval(expr)
                 if not isinstance(evaluation, Series):
                     evaluation = pd.Series(evaluation, index=df.index)
                 grouped = evaluation.groupby(grouper)
-                column = getattr(grouped, self._func_name)().values
+                column = getattr(grouped, self._func_name)().values.astype(float)
 
                 fill_value = np.nan
-                return self._owner._resolve_history(column, fill_value, skip_first=True)
+                return self._owner._resolve_history(column, fill_value)
 
     # endregion
 
