@@ -451,8 +451,8 @@ class LinkedDataFrame(DataFrame):
 
                 series_type = infer_dtype(evaluation)
                 if not self._allow_nonnumeric and series_type not in _NUMERIC_TYPES:
-                    raise RuntimeError(f"Results of evaluation '{expr}' is non-numeric, which is not allowed for "
-                                       f"aggregation function '{self._func_name}'")
+                    raise RuntimeError(f"Results of evaluation '{expr}' is non-numeric type {series_type}, which is not"
+                                       f" allowed for aggregation function '{self._func_name}'")
 
                 grouped = evaluation.groupby(grouper)
                 array = getattr(grouped, self._func_name)(**kwargs).values
