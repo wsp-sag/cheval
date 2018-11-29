@@ -224,21 +224,54 @@ class LinkedDataFrame(DataFrame):
 
     def link_to(self, other: DataFrame, name: str, *, on: _LabelType=None, levels: _LabelType=None,
                 on_self: _LabelType=None, on_other: _LabelType=None, self_levels: _LabelType=None,
-                other_levels: _LabelType=None, precompute: bool=True):
+                other_levels: _LabelType=None, precompute: bool=True) -> LinkAggregationRequired:
         """
+        Creates a new link from this DataFrame to another, assigning it to the given name.
+
+        The relationship between the left-hand-side (this DataFrame itself) and the right-hand-side (the other
+        DataFrame) must be pre-specified to create the link. The relationship can be based on the index (or a subset of
+        it levels in a MultiIndex) OR based on columns in either DataFrame.
+
+        By default, if both the "levels" and "on" args of one side are None, then the join will be made on ALL levels
+        of the side's index.
+
+        Regardless of whether the join is based on an index or columns, the same number of levels must be given. For
+        example, if the left-hand indexer uses two levels from the index, then the right-hand indexer must also use
+        two levels in the index or two columns.s
+
+        When the link is established, it is tested whether the relationship is one-to-one or many-to-one (the latter
+        indicates that aggregation is required). The result of this test is returned by this method.
 
         Args:
-            other:
-            name:
-            on:
-            levels:
-            on_self:
-            on_other:
-            self_levels:
-            other_levels:
-            precompute:
+            other: The table to join.
+            name:  The alias (symbolic name) of the new link. If Pythonic, this will show up as an
+                attribute; otherwise the link will need to be accessed using [].
+            on: If given, the join will be made on the provided **column(s)** in both this
+                and the other DataFrame. This arg cannot be used with `levels` and will override `on_self` and
+                `on_other`.
+            on_self: If provided, the left-hand side of the join will be made on the
+                column(s) in this DataFrame. This arg cannot be used with `self_levels`.
+            on_other: If provided, th right-hand-side of the join will be made on the
+                column(s) in the other DataFrame. This arg cannot be used with `other_levels`.
+            levels: If provided, the join will be made on the given **level(s)**
+                in both this and the other DataFrame's index. It can be specified as an integer or a string,
+                if both indexes have the same level names. This arg cannot be used with `on` and will override
+                `self_levels` and `other_levels`.
+            self_levels: If provided, the left-hand-side of the join will be made on the
+                level(s) in this DataFrame. This arg cannot be used with `on_self`.
+            other_levels: If provided, the right-hand-side of the join will be made on the
+                level(s) in the other DataFrame. This arg cannot be used with `on_other`.
+            precompute: Link items store indexer arrays which allow for very fast lookup, but can take a
+                significant amount of time to compute (especially when two or more columns are used for the join). When
+                precompute is set to True, this indexing operation occurs within the link_to() method. Otherwise,
+                indexing is done when first a link is requested, or manually using LinkedDataFrame.compute_indexer().
 
         Returns:
+            LinkAggregationRequired: True if aggregation is required for this link. False otherwise.
+
+        Raises:
+            LinkageSpecificationError: For mis-specified linkages.
+            KeyError: For linkages using columns or level not in this or the other DataFrame.
 
         """
         on_not_none = on is not None
