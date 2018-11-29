@@ -593,3 +593,17 @@ class LinkedDataFrame(DataFrame):
         df = DataFrame(summary_table)
         df.set_index('name', inplace=True)
         return df
+
+    def compute_indexers(self, refresh: bool=True):
+        """
+        For all outoing links, compute any missing indexers (precompute=False when calling link_to()), or refresh
+        already-computed indexers.
+
+        Args:
+            refresh: If False, indexers will only be computed for links without them. Otherwise, this forces indexers
+                to be re-computed.
+        """
+
+        for entry in self.__links.values():
+            if refresh or entry.flat_indexer is None:
+                entry.precompute()
