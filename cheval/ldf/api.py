@@ -8,12 +8,13 @@ import numpy as np
 import attr
 
 from .constants import LinkageSpecificationError, LinkAggregationRequired
-from .missing_data import SeriesFillManager
+from .missing_data import SeriesFillManager, infer_dtype, PandasDtype
 
 _FillFunctionType = Callable[[Series], Union[int, float, bool, str]]
-_SUPPORTED_AGGREGATIONS = [
-    'count', 'first', 'last', 'max', 'min', 'mean', 'median', 'prod', 'std', 'sum', 'var'
-]
+_NUMERIC_AGGREGATIONS = {'max', 'min', 'mean', 'median', 'prod', 'std', 'sum', 'var', 'quantile'}
+_NON_NUMERIC_AGGREGATIONS = {'count', 'first', 'last', 'nth'}
+_SUPPORTED_AGGREGATIONS = _NUMERIC_AGGREGATIONS | _NON_NUMERIC_AGGREGATIONS
+_NUMERIC_TYPES = {PandasDtype.INT_NAME, PandasDtype.UINT_NAME, PandasDtype.FLOAT_NAME, PandasDtype.BOOL_NAME}
 
 
 @attr.s
@@ -418,23 +419,34 @@ class LinkedDataFrame(DataFrame):
             def __init__(self, owner: 'LinkedDataFrame._LeafAggregation', func_name: str):
                 self._func_name = func_name
                 self._owner = owner
+                self._allow_nonnumeric = func_name in _NON_NUMERIC_AGGREGATIONS
 
             def __repr__(self):
                 return f"<LinkAggregator[{self._func_name}]>"
 
-            def __call__(self, expr="1"):
+            def __call__(self, expr="1", *, int_fill=-1, **kwargs):
                 top = self._owner._top
                 df = top.other
                 grouper = top.other_grouper
                 evaluation = df.eval(expr)
                 if not isinstance(evaluation, Series):
                     evaluation = pd.Series(evaluation, index=df.index)
-                grouped = evaluation.groupby(grouper)
-                column = getattr(grouped, self._func_name)().values.astype(float)
 
-                # TODO: Add support for non-numerics
+                series_type = infer_dtype(evaluation)
+                if not self._allow_nonnumeric and series_type not in _NUMERIC_TYPES:
+                    raise RuntimeError(f"Results of evaluation '{expr}' is non-numeric, which is not allowed for "
+                                       f"aggregation function '{self._func_name}'")
+
+                grouped = evaluation.groupby(grouper)
+                array = getattr(grouped, self._func_name)(**kwargs).values
+
+                # A fill value of NaN is only disallowed for integer types
                 fill_value = np.nan
-                return self._owner._resolve_history(column, fill_value)
+                if series_type == PandasDtype.INT_NAME:
+                    fill_value = int_fill
+                elif series_type == PandasDtype.TIME_NAME:
+                    raise NotImplementedError("Haven't found a way to instantiate NaT filler")
+                return self._owner._resolve_history(array, fill_value)
 
     # endregion
 
