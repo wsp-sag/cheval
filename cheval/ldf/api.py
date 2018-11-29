@@ -1,5 +1,5 @@
 from typing import List, Dict, Union, Deque, Tuple, Callable, Any, Optional, Set
-from collections import deque
+from collections import deque, Hashable
 
 from pandas import DataFrame, Series, Index, MultiIndex
 import pandas as pd
@@ -319,7 +319,7 @@ class LinkedDataFrame(DataFrame):
     # region Link lookups
 
     def __getitem__(self, item):
-        if item in self.__links:
+        if isinstance(item, Hashable) and item in self.__links:
             link = self.__links[item]
             history = deque([link])
 
