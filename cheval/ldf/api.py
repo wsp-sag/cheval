@@ -17,12 +17,20 @@ _SUPPORTED_AGGREGATIONS = _NUMERIC_AGGREGATIONS | _NON_NUMERIC_AGGREGATIONS
 _NUMERIC_TYPES = {PandasDtype.INT_NAME, PandasDtype.UINT_NAME, PandasDtype.FLOAT_NAME, PandasDtype.BOOL_NAME}
 
 
-@attr.s
 class _IndexMeta:
     labels: List[str] = attr.ib(convert=lambda x: [x] if isinstance(x, str) else list(x))
     from_row_labels: bool = attr.ib()
 
+    def __init__(self, labels=None, from_row_labels=True):
+        if isinstance(labels, str):
+            labels = [labels]
+        elif labels is None:
+            from_row_labels = True
+        self.labels = labels
+        self.from_row_labels = from_row_labels
+
     def validate(self, frame: DataFrame):
+        if self.labels is None: return # Use the index, which is always available
         frame_items = set(frame.index.levels) if self.from_row_labels else set(frame.columns)
         item_name = "index" if self.from_row_labels else "columns"
 
@@ -30,6 +38,8 @@ class _IndexMeta:
             assert name in frame_items, f"Could not find '{name}' in the {item_name}"
 
     def get_indexer(self, frame: DataFrame) -> Index:
+        if self.labels is None: return frame.index
+
         arrays = []
         if self.from_row_labels:
             if len(self.labels) > frame.index.nlevels:
@@ -58,6 +68,10 @@ class _IndexMeta:
             return f"From index: {self.labels}"
         return f"From columns: {self.labels}"
 
+    def nlevels(self, frame: DataFrame) -> int:
+        if self.labels is None: return frame.index.nlevels
+        return len(self.labels)
+
 
 class _LinkMeta:
     owner: 'LinkedDataFrame'
@@ -74,6 +88,9 @@ class _LinkMeta:
                other_labels: Union[List[str], str], other_from_row_labels: bool, precompute: bool=True) -> '_LinkMeta':
         self_meta = _IndexMeta(self_labels, self_from_row_labels)
         other_meta = _IndexMeta(other_labels, other_from_row_labels)
+
+        assert self_meta.nlevels(owner) == other_meta.nlevels(other)
+
         other_has_links = isinstance(other, LinkedDataFrame)
 
         link = _LinkMeta(owner, other, self_meta, other_meta, other_has_links )
