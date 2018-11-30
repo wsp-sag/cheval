@@ -334,7 +334,7 @@ class LinkedDataFrame(DataFrame):
         filler = self.__instance_filler if self is not None else LinkedDataFrame.__class_filler
         yield from filler.temporary_fill_defaults(**kwargs)
 
-    def reset_fill_defaults(self):
+    def reset_fill_defaults(self=None):
         filler = self.__instance_filler if self is not None else LinkedDataFrame.__class_filler
         filler.reset_fill_defaults()
 
