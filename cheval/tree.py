@@ -1,3 +1,4 @@
+"""Main Multinomial/Nested Logit ChoiceTree class & supporting classes"""
 from typing import Dict, Iterator, Tuple
 import pandas as pd
 import numpy as np

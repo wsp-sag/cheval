@@ -1,3 +1,4 @@
+"""Module for AST Transformer subclass which specially-parses utility expressions"""
 from typing import Dict, Tuple, Set
 
 import ast

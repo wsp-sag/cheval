@@ -1,3 +1,4 @@
+"""Top-level API, including the main LinkedDataFrame class"""
 from typing import List, Dict, Union, Deque, Tuple, Callable, Any, Optional, Set
 from collections import deque
 

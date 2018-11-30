@@ -1,3 +1,4 @@
+"""Common constants & exception classes for LDF"""
 from enum import Enum
 
 

@@ -1,3 +1,4 @@
+"""Main expression context manager/calculator, and supporting API"""
 from typing import Set, Any, Union, Dict, List, Tuple
 import abc
 

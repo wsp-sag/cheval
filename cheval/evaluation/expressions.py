@@ -1,3 +1,4 @@
+"""Classes for storing utility expressions, in both raw and transformed forms"""
 import ast
 import astor
 
