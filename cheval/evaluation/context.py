@@ -7,6 +7,7 @@ import numexpr as ne
 
 from .parsing import ChainedSymbol, ChainTuple, NAN_STR
 from.expressions import Expression, ExpressionGroup
+from ..ldf import LinkedDataFrame
 
 _OUT_STR = "__OUT"
 
@@ -103,6 +104,7 @@ class TableSymbol(AbstractSymbol):
 
     def get(self, chain: ChainTuple=None):
         assert chain is not None
+        # TODO: This
 
     def empty(self):
         self._table = None
