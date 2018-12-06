@@ -176,6 +176,13 @@ class MatrixSymbol(AbstractSymbol):
 class EvaluationContext(object):
 
     def __init__(self, *, rows_index: pd.Index=None, col_index: pd.Index=None):
+        """
+        Constructs a new EvaluationContext, optionally initializing the row & column labels
+
+        Args:
+            rows_index: Optional row labels to initialize with.
+            col_index: Optional column labels to initialize with
+        """
         self._row_index: pd.Index = rows_index
         self._col_index: pd.Index = col_index
         self._symbols: Dict[str, AbstractSymbol] = {}
@@ -203,19 +210,31 @@ class EvaluationContext(object):
         self._symbols.clear()
 
     def define_rows(self, index: pd.Index):
+        """Sets or resets the labels for the rows (decision elements when used in conjunction with ChoiceTree)"""
         self.empty()
         self._row_index = pd.Index(index)
 
     def define_columns(self, index: pd.Index):
+        """Sets or resets the labels for the columns (alternatives when used in conjunction with ChoiceTree)"""
         self.empty()
         self._col_index = pd.Index(index)
 
     # region Symbol declarations
 
     def declare_number(self, name: str):
+        """Declares a simple scalar symbol, of number or text type"""
         self._symbols[name] = NumberSymbol(self, name)
 
     def declare_vector(self, name: str, orientation: int):
+        """
+        Declares a vector symbol. Vectors can be aligned with the rows or columns of the context. Supports NumPy arrays
+        or Pandas Series objects. Checks that the data aligns with the context
+
+        Args:
+            name: Name of the sybol to declare
+            orientation: 0 if oriented to the rows, 1 if oriented to the columns
+
+        """
         self._symbols[name] = VectorSymbol(self, name, orientation)
 
     def declare_table(self, name: str, orientation: int, mandatory_attributes: Set[str]=None,
@@ -228,20 +247,44 @@ class EvaluationContext(object):
     # endregion
 
     def define_symbol(self, name: str, data):
+        """
+        Define a previously-declared symbol with actual data, ready for evaluation.
+
+        Args:
+            name: The name of the declared symbol to define.
+            data: The data to associate with the declared symbol. Allowed types depend on the declaration type (number,
+                vector, matrix, or DataFrame)
+
+        """
         self._symbols[name].fill(data)
+        # TODO: Convenience method for declaring & defining a symbol in a single method. Do not use in tutorials.
 
     def validate_expr(self, expressions: Union[str, List[str], Expression, ExpressionGroup]):
+        """Test if an expression or list of expressions will evaluate in the current context"""
         item, _ = self._prepare_expressions(expressions)
         self._validate_decalred(item)
 
         return item
 
-    def evaluate(self, expressions: Union[str, List[str], Expression, ExpressionGroup]):
+    def evaluate(self, expressions: Union[str, List[str], Expression, ExpressionGroup]) -> pd.DataFrame:
+        """
+        Primary result method for EvaluationContext class. Evaluates one or more expressions and returns the sum of
+        their results as a DataFrame.
+
+        Args:
+            expressions:
+
+        Returns: The summation over expression evaluations.
+
+        """
         item, multile_statements = self._prepare_expressions(expressions)
         self._validate_decalred(item)
         self._validate_defined(item)
 
-    def _prepare_expressions(self, item) -> Tuple[Union[Expression, ExpressionGroup], bool]:
+        return self._eval_single(item) if multile_statements else self._eval_group(item)
+
+    @staticmethod
+    def _prepare_expressions(item) -> Tuple[Union[Expression, ExpressionGroup], bool]:
         # Parse if neccessary
         if isinstance(item, str):
             return Expression(item), False
@@ -308,7 +351,8 @@ class EvaluationContext(object):
     def _align_series(self, s: pd.Series) -> np.ndarray:
         return s.reindex(self._col_index, fill_value=0).values
 
-    def _kernel_eval(self, transformed_expr: str, local_dict: Dict[str, np.ndarray], out: np.ndarray):
+    @staticmethod
+    def _kernel_eval(transformed_expr: str, local_dict: Dict[str, np.ndarray], out: np.ndarray):
         expr_to_run = f"{_OUT_STR} + {transformed_expr}"
         ne.evaluate(expr_to_run, local_dict=local_dict, out=out)
 
