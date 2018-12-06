@@ -103,9 +103,31 @@ class TableSymbol(AbstractSymbol):
 
         self._table = data
 
-    def get(self, chain: ChainTuple=None):
-        assert chain is not None
-        # TODO: This
+    def get(self, chain_info: ChainTuple=None):
+        assert chain_info is not None
+
+        chained = len(chain_info.chain) > 1
+
+        if chained:
+            assert isinstance(self._table, LinkedDataFrame)
+            item = self._table
+            for item_name in chain_info.chain:
+                item = item[item_name]
+
+            if chain_info.withfunc:
+                series = getattr(item, chain_info.func)(chain_info.args)
+            else:
+                series = item
+        else:
+            attribute_name = chain_info.chain[0]
+            series = self._table[attribute_name]
+
+        vector = series.values[...]  # Make a shallow copy
+
+        n = len(vector)
+        new_shape = (n, 1) if self._orientation == 0 else (1, n)
+        vector.shape = new_shape
+        return vector
 
     def empty(self):
         self._table = None
