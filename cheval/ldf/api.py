@@ -614,7 +614,11 @@ class LinkedDataFrame(DataFrame):
 
     def eval(self, expr, inplace=False, **kwargs):
         """Override of DataFrame.eval() to allow link-lookups inside expressions."""
-        new_expr = Expression(expr, dict_literals=False)
+
+        # Because this calls DataFrame.eval(), I only want to parse out attribute lookups. So I have to disable
+        # dict literals (only allowed during discrete choice expressions) and the conversion of logical operands
+        # ('and' -> '&', which is already done by the Pandas parser)
+        new_expr = Expression(expr, dict_literals=False, convert_logicals=False)
 
         ld = kwargs['local_dict'] if 'local_dict' in kwargs else {}
         for name, chain_info in new_expr.iterchained():

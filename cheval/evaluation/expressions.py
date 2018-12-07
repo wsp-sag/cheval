@@ -12,11 +12,11 @@ from typing import Dict, Set, Iterable, List
 class Expression(object):
     """Single expression"""
 
-    def __init__(self, expression: str, *, dict_literals=True):
+    def __init__(self, expression: str, *, dict_literals=True, convert_logicals=True):
         self._raw: str = expression
 
         tree = ast.parse(expression, mode='eval').body
-        transformer = ExpressionParser()
+        transformer = ExpressionParser(allow_dict_literals=dict_literals, convert_logical_operands=convert_logicals)
         new_tree = transformer.visit(tree)
         self._transformed: str = astor.to_source(new_tree)
 

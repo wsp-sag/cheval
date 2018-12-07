@@ -31,7 +31,11 @@ _SUPPORTED_AGGREGATIONS = {
 
 class ExpressionParser(ast.NodeTransformer):
 
-    def __init__(self, prior_simple: Set[str]=None, prior_chained: Set[str]=None):
+    def __init__(self, prior_simple: Set[str]=None, prior_chained: Set[str]=None, allow_dict_literals=True,
+                 convert_logical_operands=True):
+        self.allow_dict_literals = allow_dict_literals
+        self.convert_logical_operands = convert_logical_operands
+
         self.dict_literals: Dict[str, pd.Series] = {}
 
         # Optionally, use an ongoing collection of simple and chained symbols to enforce consistent usage
@@ -58,6 +62,8 @@ class ExpressionParser(ast.NodeTransformer):
         return node
 
     def visit_unaryop(self, node):
+        if not self.convert_logical_operands: return node
+
         # Converts 'not' into '~' which NumExpr supports
         if isinstance(node.op, ast.Not):
             return ast.UnaryOp(op=ast.Invert(), operand=self.visit(node.operand))
@@ -66,6 +72,8 @@ class ExpressionParser(ast.NodeTransformer):
         raise NotImplementedError(type(node.op))
 
     def visit_boolop(self, node):
+        if not self.convert_logical_operands: return node
+
         # Converts 'and' and 'or' into '&' and '|' which NumExpr supports
         # BoolOp objects have a list of values but need to be converted into a tree of BinOps
 
@@ -150,6 +158,8 @@ class ExpressionParser(ast.NodeTransformer):
         return resovled_keys
 
     def visit_dict(self, node):
+        if not self.allow_dict_literals: raise UnsupportedSyntaxError("Dict literals not allowed in this context")
+
         substitution = '__dict%s' % len(self.dict_literals)
         new_node = ast.Name(substitution, ast.Load())
 
