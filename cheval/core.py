@@ -1,3 +1,4 @@
+"""Collection of pure-Numba functions for sampling & probability computation"""
 from typing import Union, Tuple
 import numpy as np
 from numpy import ndarray
