@@ -12,7 +12,7 @@ from typing import Dict, Set, Iterable, List
 class Expression(object):
     """Single expression"""
 
-    def __init__(self, expression: str):
+    def __init__(self, expression: str, *, dict_literals=True):
         self._raw: str = expression
 
         tree = ast.parse(expression, mode='eval').body

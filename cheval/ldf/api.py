@@ -10,6 +10,7 @@ import attr
 
 from .constants import LinkageSpecificationError, LinkAggregationRequired
 from .missing_data import SeriesFillManager, infer_dtype, PandasDtype
+from cheval.evaluation import Expression
 
 _FillFunctionType = Callable[[Series], Union[int, float, bool, str]]
 _NUMERIC_AGGREGATIONS = {'max', 'min', 'mean', 'median', 'prod', 'std', 'sum', 'var', 'quantile'}
@@ -608,3 +609,27 @@ class LinkedDataFrame(DataFrame):
         for entry in self.__links.values():
             if refresh or entry.flat_indexer is None:
                 entry.precompute()
+
+    # region Expression evaluation
+
+    def eval(self, expr, inplace=False, **kwargs):
+        """Override of DataFrame.eval() to allow link-lookups inside expressions."""
+        new_expr = Expression(expr, dict_literals=False)
+
+        ld = kwargs['local_dict'] if 'local_dict' in kwargs else {}
+        for name, chain_info in new_expr.iterchained():
+            assert self._has_link(name)
+            item = self[name]
+            for item_name in chain_info.chain:
+                item = item[item_name]
+
+            if chain_info.withfunc:
+                series = getattr(item, chain_info.func)(chain_info.args)
+            else:
+                series = item
+
+            ld[chain_info.substitution] = series.values[...]
+
+        return super().eval(new_expr.transformed, inplace=inplace, local_dict=ld, **kwargs)
+
+    # endregion
