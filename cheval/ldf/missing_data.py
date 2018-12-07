@@ -6,9 +6,13 @@ from contextlib import contextmanager
 import pandas as pd
 import numpy as np
 
-_INT_TYPES = {int, np.int_, np.int8, np.int16, np.int32, np.int64}
-_UINT_TYPES = (np.uint8, np.uint16, np.uint32, np.uint64)
-_FLOAT_TYPES = {float, np.float16, np.float32, np.float64}
+# Numpy dtypes are constructed on the fly, so the only way to test if a dtype is a 32-bit integer is to check using
+# strict equality (==). Initially, the collections below were sets, but then Python checks for containment by hashing
+# the dtype, which is not guaranteed to be consistent in all cases. So, these are lists instead which forces Python to
+# check for equality.
+_INT_TYPES = [np.int64, np.int32, int, np.int_, np.int8, np.int16]
+_UINT_TYPES = [np.uint8, np.uint16, np.uint32, np.uint64]
+_FLOAT_TYPES = [np.float64,  np.float32, float, np.float16, np.float32]
 
 
 class PandasDtype(enum.Enum):
@@ -29,7 +33,7 @@ def infer_dtype(s: pd.Series) -> PandasDtype:
     if hasattr(s, 'str'): return PandasDtype.TEXT_NAME
     if hasattr(s, 'dt'): return PandasDtype.TIME_NAME
 
-    type_to_check = s.dtype.type
+    type_to_check = s.dtype
     if type_to_check == np.bool_: return PandasDtype.BOOL_NAME
     if type_to_check in _INT_TYPES: return PandasDtype.INT_NAME
     if type_to_check in _UINT_TYPES: return PandasDtype.UINT_NAME
