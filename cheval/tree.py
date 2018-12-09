@@ -5,9 +5,9 @@ import numpy as np
 from collections import deque
 
 
-class _ChoiceNode(object):
+class ChoiceNode(object):
 
-    def __init__(self, name: str, root: 'ChoiceTree', parent: '_ChoiceNode'=None, logsum_scale: float=1.0,
+    def __init__(self, name: str, root: 'ChoiceTree', parent: 'ChoiceNode' =None, logsum_scale: float=1.0,
                  level: int=0):
         assert name != ".", 'Choice node name cannot "."'
         assert 0.0 < logsum_scale <= 1.0, "Logsum scale must be in hte interval (0, 1], got %s" % logsum_scale
@@ -18,7 +18,7 @@ class _ChoiceNode(object):
         self._logsum_scale = None
         self.logsum_scale = logsum_scale
         self._level = level
-        self._children: dict[str, '_ChoiceNode'] = {}
+        self._children: Dict[str, 'ChoiceNode'] = {}
 
     def __str__(self): return self.name
 
@@ -75,8 +75,8 @@ class _ChoiceNode(object):
             retval += c.nested_ids(max_level)
         return retval
 
-    def add(self, name: str, logsum_scale: float=1.0) -> '_ChoiceNode':
-        node = _ChoiceNode(name, self._root, self, logsum_scale, self.level + 1)
+    def add(self, name: str, logsum_scale: float=1.0) -> 'ChoiceNode':
+        node = ChoiceNode(name, self._root, self, logsum_scale, self.level + 1)
         self._children[name] = node
         return node
 
@@ -89,10 +89,10 @@ class ChoiceTree(object):
 
     def __init__(self):
         self._max_level = 0
-        self._top_children: Dict[str, _ChoiceNode] = {}
+        self._top_children: Dict[str, ChoiceNode] = {}
 
-    def add(self, name: str, logsum_scale: float=1.0) -> _ChoiceNode:
-        node = _ChoiceNode(name, self, None, logsum_scale, 1)
+    def add(self, name: str, logsum_scale: float=1.0) -> ChoiceNode:
+        node = ChoiceNode(name, self, None, logsum_scale, 1)
         self._top_children[name] = node
         return node
 
@@ -124,7 +124,7 @@ class ChoiceTree(object):
         for c in self._top_children.values(): c.clear()
         self._top_children.clear()
 
-    def all_children(self) -> Iterator[_ChoiceNode]:
+    def all_children(self) -> Iterator[ChoiceNode]:
         q = deque()
         for c in self._top_children.values(): q.append(c)
         while len(q) > 0:
