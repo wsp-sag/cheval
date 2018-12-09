@@ -20,7 +20,7 @@ class AbstractSymbol(object, metaclass=abc.ABCMeta):
         self._name = name
 
     @abc.abstractmethod
-    def fill(self, data): pass
+    def assign(self, data): pass
 
     @abc.abstractmethod
     def get(self, **kwargs) -> Union[float, np.ndarray]: pass
@@ -34,7 +34,7 @@ class NumberSymbol(AbstractSymbol):
         super().__init__(parent, name)
         self._val = None
 
-    def fill(self, data):
+    def assign(self, data):
         self._val = float(data)
 
     def get(self):
@@ -53,7 +53,7 @@ class VectorSymbol(AbstractSymbol):
         self._orientation = orientation
         self._raw_array: np.ndarray = None
 
-    def fill(self, data):
+    def assign(self, data):
         index_to_check = self._parent.cols if self._orientation else self._parent.rows
 
         if isinstance(data, pd.Series):
@@ -90,7 +90,7 @@ class TableSymbol(AbstractSymbol):
         self._allow_links = bool(allow_links)
         self._table: pd.DataFrame = None
 
-    def fill(self, data):
+    def assign(self, data):
         assert isinstance(data, pd.DataFrame)
         index_to_check = self._parent.cols if self._orientation else self._parent.rows
         assert data.index.equals(index_to_check), "DataFrame index does not match context rows or columns"
@@ -140,7 +140,7 @@ class MatrixSymbol(AbstractSymbol):
         self._allow_transpose = bool(allow_transpose)
         self._matrix: np.ndarray = None
 
-    def fill(self, data):
+    def assign(self, data):
         rows = self._parent.rows
         cols = self._parent.cols
 
@@ -264,7 +264,7 @@ class EvaluationContext(object):
             Vector symbols expect a 1D array of values, stored as Numpy ndarrays or Pandas Series.
 
         """
-        self._symbols[name].fill(data)
+        self._symbols[name].assign(data)
         # TODO: Convenience method for declaring & defining a symbol in a single method. Do not use in tutorials.
 
     def validate_expr(self, expressions: Union[str, List[str], Expression, ExpressionGroup]):
