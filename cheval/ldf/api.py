@@ -615,24 +615,31 @@ class LinkedDataFrame(DataFrame):
     def eval(self, expr, inplace=False, **kwargs):
         """Override of DataFrame.eval() to allow link-lookups inside expressions."""
 
-        # Because this calls DataFrame.eval(), I only want to parse out attribute lookups. So I have to disable
-        # dict literals (only allowed during discrete choice expressions) and the conversion of logical operands
-        # ('and' -> '&', which is already done by the Pandas parser)
-        new_expr = Expression(expr, dict_literals=False, convert_logicals=False)
+        # DataFrame.eval() semantics differ from that of Cheval, so parsing and evaluation need to be handled
+        # differently. So the ExpressionParser now supports 'cheval' and 'pandas' modes. Switching to the 'pandas'
+        # mode has the following effects:
+        #  - Disables dict literals (not supported by Pandas)
+        #  - Disables converting of logicals to their bitwise versions
+        #  - Prepends '@' to all substitutions (DataFrame.eval() specifically needs this to disambiguate from
+        #    column names.
+        new_expr = Expression(expr, mode='pandas')
 
         ld = kwargs['local_dict'] if 'local_dict' in kwargs else {}
-        for name, chain_info in new_expr.iterchained():
-            assert self._has_link(name)
-            item = self[name]
-            for item_name in chain_info.chain:
-                item = item[item_name]
+        for link_name, chain_symbol in new_expr.iterchained():
+            assert self._has_link(link_name)
 
-            if chain_info.withfunc:
-                series = getattr(item, chain_info.func)(chain_info.args)
-            else:
-                series = item
+            for substitution, chain_tuple in chain_symbol.items():
+                node = self[link_name]
+                for attribute_name in chain_tuple.chain:
+                    node = node[attribute_name]
 
-            ld[chain_info.substitution] = series.values[...]
+                if chain_tuple.withfunc:
+                    series = getattr(node, chain_tuple.func)(chain_tuple.args)
+                else:
+                    series = node
+
+                new_key = substitution.replace('@', '')  # Drop the @ in the local dict
+                ld[new_key] = series.values[...]
 
         return super().eval(new_expr.transformed, inplace=inplace, local_dict=ld, **kwargs)
 

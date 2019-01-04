@@ -295,7 +295,7 @@ class EvaluationContext(object):
     def _prepare_expressions(item) -> Tuple[Union[Expression, ExpressionGroup], bool]:
         # Parse if neccessary
         if isinstance(item, str):
-            return Expression(item), False
+            return Expression(item, mode='cheval'), False
         elif isinstance(item, Expression):
             return item, False
         elif isinstance(item, ExpressionGroup):
