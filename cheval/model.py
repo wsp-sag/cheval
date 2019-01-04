@@ -1,5 +1,6 @@
 from typing import Iterable, List, Dict, Union, Tuple, Iterator, Set
 from collections import deque
+from itertools import chain as iter_chain
 
 from pandas import Series, DataFrame, Index, MultiIndex
 from numpy import ndarray
@@ -208,6 +209,19 @@ class ChoiceModel(object):
     # endregion
     # region Run methods
 
+    def validate_tree(self):
+        if len(self._top_children) <= 1:
+            raise ModelNotReadyError("At least two or more choices must be defined")
+
+        # TODO: Check that all nested nodes have at least two children
+
+    def validate_scope(self):
+        for symbol_name in iter_chain(self._expressions.itersimple(), self._expressions.iterchained()):
+            if symbol_name not in self._scope:
+                raise KeyError(f"Symbol {symbol_name} not declared")
+
+        # TODO: Check that symbols are also assigned
+
     def run_discrete(self, *, random_seed: Union[np.random.RandomState, int]=None, n_draws: int=1,
                      astype: Union[str, np.dtype]='category', squeeze: bool=True, n_threads: int=1,
                      clear_scope: bool=True, precision: int=8
@@ -234,7 +248,8 @@ class ChoiceModel(object):
         Returns:
             Series or DataFrame, depending on squeeze and n_draws. The dtype of the returned object depends on astype.
         """
-        # TODO: Check if model is ready
+        self.validate_tree()
+        self.validate_scope()
         if random_seed is None:
             random_seed = np.random.randint(1, 1000)
 

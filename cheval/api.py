@@ -135,6 +135,9 @@ class ExpressionGroup(object):
     def itersimple(self):
         yield from self._simple_symbols
 
+    def iterchained(self):
+        yield from self._chained_symbols
+
     def __iter__(self) -> Generator[_Expression, None, None]:
         yield from self._expressions
 
