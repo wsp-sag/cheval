@@ -139,6 +139,39 @@ class ExpressionGroup(object):
         yield from self._expressions
 
 
+def convert_series(s: pd.Series, allow_raw=False) -> np.ndarray:
+    dtype = s.dtype
+
+    if dtype.name == 'category':
+        # Categorical column
+        categorical = s.values
+
+        category_index = categorical.categories
+        if category_index.dtype.name == 'object':
+            max_len = category_index.str.len().max()
+            typename = 'S%s' % max_len
+        else:
+            typename = category_index.dtype
+
+        return categorical.astype(typename)
+    elif dtype.name == 'object':
+        # Object or text column
+        max_length = s.str.len().max()
+        if np.isnan(max_length):
+            raise TypeError("Could not get max string length")
+
+        return s.values.astype("S%s" % max_length)
+    elif np.issubdtype(dtype, np.datetime64):
+        raise TypeError("Datetime columns are not supported")
+    elif np.issubdtype(dtype, np.timedelta64):
+        raise TypeError("Timedelta columns are not supported")
+    try:
+        return s.values[...]
+    except:
+        if allow_raw: return s
+        raise
+
+
 class AbstractSymbol(object, metaclass=abc.ABCMeta):
 
     def __init__(self, parent: 'ChoiceModel', name: str):
@@ -185,7 +218,7 @@ class VectorSymbol(AbstractSymbol):
 
         if isinstance(data, pd.Series):
             assert index_to_check.equals(data.index), "Series does not match context rows or columns"
-            vector = data.values
+            vector = convert_series(data, allow_raw=False)  # Convert Categorical/Text right away
         elif isinstance(data, np.ndarray):
             assert len(data.shape) == 1, "Only 1D arrays are permitted"
             assert len(data) == len(index_to_check), "Array length does not match length of rows or columns"
@@ -200,7 +233,6 @@ class VectorSymbol(AbstractSymbol):
         else: self._raw_array.shape = n, 1
 
     def _get(self):
-        # TODO: Add handling for categorical series
         if self._raw_array is None:
             raise ModelNotReadyError
         return self._raw_array
@@ -235,7 +267,6 @@ class TableSymbol(AbstractSymbol):
         self._table = data
 
     def _get(self, chain_info: ChainTuple=None):
-        # TODO: Add handling for categorical series
         assert chain_info is not None
 
         chained = len(chain_info.chain) > 1
@@ -254,7 +285,7 @@ class TableSymbol(AbstractSymbol):
             attribute_name = chain_info.chain[0]
             series = self._table[attribute_name]
 
-        vector = series.values[...]  # Make a shallow copy
+        vector = convert_series(series, allow_raw=False)
 
         n = len(vector)
         new_shape = (n, 1) if self._orientation == 0 else (1, n)
