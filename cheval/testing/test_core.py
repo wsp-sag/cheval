@@ -11,7 +11,7 @@ from core import (
     worker_multinomial_probabilities,
     nested_probabilities, nested_sample, nested_multisample, worker_nested_sample, worker_nested_probabilities
 )
-from tree import ChoiceTree
+from cheval.model import ChoiceModel
 
 
 def _cp_midpoints(p_array):
@@ -185,20 +185,20 @@ class TestNestedCore(unittest.TestCase):
 
     @staticmethod
     def _build_nested_tree():
-        tree = ChoiceTree()
+        tree = ChoiceModel()
 
-        auto = tree.add('auto', logsum_scale=0.7)
-        auto.add('carpool')
-        auto.add('drive')
+        auto = tree.add_choice('auto', logsum_scale=0.7)
+        auto.add_choice('carpool')
+        auto.add_choice('drive')
 
-        transit = tree.add('transit', logsum_scale=0.7)
-        transit.add('bus')
-        train = transit.add('train', logsum_scale=0.3)
+        transit = tree.add_choice('transit', logsum_scale=0.7)
+        transit.add_choice('bus')
+        train = transit.add_choice('train', logsum_scale=0.3)
 
-        train.add('drive')
-        train.add('walk')
+        train.add_choice('drive')
+        train.add_choice('walk')
 
-        return tree.flatten()
+        return tree._flatten()
 
     def test_probabilities(self):
         utilities = np.float64([-0.001, -1.5, -0.5, -0.005, -1, -0.075, -0.3, -0.9])
