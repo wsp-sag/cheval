@@ -32,7 +32,7 @@ class _IndexMeta:
         self.from_row_labels = from_row_labels
 
     def validate(self, frame: DataFrame):
-        if self.labels is None: return # Use the index, which is always available
+        if self.labels is None: return  # Use the index, which is always available
         frame_items = set(frame.index.levels) if self.from_row_labels else set(frame.columns)
         item_name = "index" if self.from_row_labels else "columns"
 
@@ -95,7 +95,7 @@ class _LinkMeta:
 
         other_has_links = isinstance(other, LinkedDataFrame)
 
-        link = _LinkMeta(owner, other, self_meta, other_meta, other_has_links )
+        link = _LinkMeta(owner, other, self_meta, other_meta, other_has_links)
         link._determine_aggregation(precompute)
 
         return link

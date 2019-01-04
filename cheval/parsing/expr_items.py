@@ -11,8 +11,8 @@ class ChainedSymbol(object):
         self._name: str = name
         self._lookups: Dict[str, ChainTuple] = {}
 
-    def add_chain(self, chain: deque, func: str=None, args: str=None, *, prepend_at=False) -> str:
-        sub_name = self._make_sub(prepend_at=prepend_at)
+    def add_chain(self, chain: deque, func: str=None, args: str=None) -> str:
+        sub_name = self._make_sub()
         self._lookups[sub_name] = self._build_chain(chain, func, args)
         return sub_name
 
@@ -22,10 +22,8 @@ class ChainedSymbol(object):
             return ChainTuple(chain, None, None, False)
         return ChainTuple(chain, func, args, True)
 
-    def _make_sub(self, *, prepend_at=False) -> str:
-        s1 = "__sub_%s%s" % (self._name, len(self._lookups))
-        if prepend_at: return '@' + s1
-        return s1
+    def _make_sub(self) -> str:
+        return "__sub_%s%s" % (self._name, len(self._lookups))
 
     def items(self) -> Tuple[str, ChainTuple]:
         yield from self._lookups.items()
