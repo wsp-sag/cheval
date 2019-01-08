@@ -8,7 +8,7 @@ import numpy as np
 import attr
 
 from .parsing.expr_items import ChainTuple, ChainedSymbol
-from .parsing.ast_transformer import ExpressionParser
+from .parsing.expressions import Expression
 from .ldf import LinkedDataFrame
 from .exceptions import ModelNotReadyError
 if TYPE_CHECKING:
@@ -94,37 +94,18 @@ class ChoiceNode(object):
         self._children.clear()
 
 
-@attr.s
-class _Expression(object):
-    """Simple data class for utility expressions"""
-
-    raw: str = attr.ib()
-    transformed: str = attr.ib()
-    chains: Dict[str, ChainedSymbol] = attr.ib()
-    dict_literals: Dict[str, pd.Series] = attr.ib()
-
-    @staticmethod
-    def parse(e: str, prior_simple: Set[str]=None, prior_chained: Set[str]=None) -> '_Expression':
-        tree = ast.parse(e, mode='eval').body
-        transformer = ExpressionParser(prior_simple, prior_chained)
-        new_tree = transformer.visit(tree)
-
-        new_e = _Expression(e, astor.to_source(new_tree), transformer.chained_symbols, transformer.dict_literals)
-        return new_e
-
-
 class ExpressionGroup(object):
 
     def __init__(self, root: 'ChoiceModel'):
         self.root: 'ChoiceModel' = root
-        self._expressions: List[_Expression] = []
+        self._expressions: List[Expression] = []
         self._simple_symbols: Set[str] = set()
         self._chained_symbols: Set[str] = set()
 
     def append(self, e: str):
         # Parse the expression and look for invalid syntax and inconsistent usage. self._simple_sybols and
         # self._chained_symbols are modified in-place during parsing.
-        expr = _Expression.parse(e, self._simple_symbols, self._chained_symbols)
+        expr = Expression.parse(e, self._simple_symbols, self._chained_symbols)
         self._expressions.append(expr)
 
     def clear(self):
@@ -138,7 +119,7 @@ class ExpressionGroup(object):
     def iterchained(self):
         yield from self._chained_symbols
 
-    def __iter__(self) -> Generator[_Expression, None, None]:
+    def __iter__(self) -> Generator[Expression, None, None]:
         yield from self._expressions
 
 

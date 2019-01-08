@@ -10,7 +10,7 @@ import attr
 
 from .constants import LinkageSpecificationError, LinkAggregationRequired
 from .missing_data import SeriesFillManager, infer_dtype, PandasDtype
-from cheval.evaluation import Expression
+from ..parsing.expressions import Expression
 
 _FillFunctionType = Callable[[Series], Union[int, float, bool, str]]
 _NUMERIC_AGGREGATIONS = {'max', 'min', 'mean', 'median', 'prod', 'std', 'sum', 'var', 'quantile'}
