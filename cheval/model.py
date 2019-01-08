@@ -214,7 +214,10 @@ class ChoiceModel(object):
         if len(self._top_children) <= 1:
             raise ModelNotReadyError("At least two or more choices must be defined")
 
-        # TODO: Check that all nested nodes have at least two children
+        for c in self._all_children():
+            n_children = len(c.children())
+            if n_children == 1:
+                raise ModelNotReadyError("In a nested model, all sub-choices must have 0, or 2 or more children")
 
     def validate_scope(self):
         for symbol_name in iter_chain(self._expressions.itersimple(), self._expressions.iterchained()):
