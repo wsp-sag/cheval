@@ -3,6 +3,7 @@ from collections import deque
 from itertools import chain as iter_chain
 
 from pandas import Series, DataFrame, Index, MultiIndex
+import pandas as pd
 from numpy import ndarray
 import numpy as np
 import numexpr as ne
@@ -224,7 +225,7 @@ class ChoiceModel(object):
 
     def run_discrete(self, *, random_seed: Union[np.random.RandomState, int]=None, n_draws: int=1,
                      astype: Union[str, np.dtype]='category', squeeze: bool=True, n_threads: int=1,
-                     clear_scope: bool=True, precision: int=8
+                     clear_scope: bool=True, precision: int=8, result_name: str=None
                      ) -> Union[Tuple[Series, Series], Tuple[DataFrame, Series]]:
         """
         For each decision unit, discretely sample one or more times (with replacement) from the probability
@@ -244,6 +245,7 @@ class ChoiceModel(object):
                 utility computation will be released, freeing up memory. Turning this off is of limited use.
             precision: The number of bytes to store for each cell in the utility array; one of 1, 2, 4, or 8. More
                 precision requires more memory.
+            result_name: Name for the result Series or name of the columns of the result DataFrame. Purely aesthetic.
 
         Returns:
             Series or DataFrame, depending on squeeze and n_draws. The dtype of the returned object depends on astype.
@@ -271,7 +273,7 @@ class ChoiceModel(object):
 
         # Finalize results
         logsum = Series(logsum, index=self.decision_units)
-        result = self._convert_result(raw_result, astype)
+        result = self._convert_result(raw_result, astype, squeeze, result_name)
         return result, logsum
 
     def _evaluate_utilities(self, precision=8) -> DataFrame:
@@ -316,8 +318,32 @@ class ChoiceModel(object):
         expr_to_run = f"{OUT_STR} + {transformed_expr}"
         ne.evaluate(expr_to_run, local_dict=local_dict, out=out)
 
-    def _convert_result(self, raw_result: ndarray, astype) -> Series:
-        raise NotImplementedError()
+    def _convert_result(self, raw_result: ndarray, astype, squeeze: bool, result_name: str) -> Union[Series, DataFrame]:
+        n_draws = raw_result.shape[1]
+        column_index = pd.RangeIndex(n_draws, name=result_name)
+        record_index = self.decision_units
+
+        if astype == 'index':
+            if squeeze and n_draws == 1:
+                return pd.Series(raw_result[:, 0], index=record_index, name=result_name)
+            return pd.DataFrame(raw_result, index=record_index, columns=column_index)
+        elif astype == 'category':
+            lookup_table = pd.Categorical(self.choices)
+        else:
+            lookup_table = self.choices.astype(astype)
+
+        retval = []
+        for col in range(n_draws):
+            indices = raw_result[:, col]
+            retval.append(Series(lookup_table.take(indices), index=record_index))
+        retval = pd.concat(retval, axis=1)
+        retval.columns = column_index
+
+        if n_draws == 1 and squeeze:
+            retval = retval.iloc[:, 0]
+            retval.name = result_name
+        return retval
+
 
     def run_stochastic(self, n_threads: int=1, clear_scope: bool=True, precision: int=8) -> Tuple[DataFrame, Series]:
         """
