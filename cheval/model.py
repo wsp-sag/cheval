@@ -76,7 +76,7 @@ class ChoiceModel(object):
     @property
     def choices(self) -> Index:
         """Pandas Index representing the choices in the model"""
-        if len(self._top_children) <= 1: raise ModelNotReadyError("At least two or more choices must be defined")
+        self.validate_tree()
         max_level = self.depth
 
         if max_level == 1:
@@ -365,9 +365,8 @@ class ChoiceModel(object):
         self.validate_scope()
 
         # Utility computations
-        utility_frame = self._evaluate_utilities(precision=precision)
+        utility_table = self._evaluate_utilities(precision=precision).values
         if clear_scope: self.clear_scope()
-        utility_table = utility_frame.values
 
         # Compute probabilities
         nb.config.NUMBA_NUM_THREADS = n_threads  # Set the number of threads for parallel execution
@@ -378,8 +377,8 @@ class ChoiceModel(object):
         else:
             raw_result, logsum = worker_multinomial_probabilities(utility_table)
 
-        result_frame = DataFrame(raw_result, index=utility_frame.index, columns=utility_frame.columns)
-        logsum = Series(logsum, index=utility_frame.index)
+        result_frame = DataFrame(raw_result, index=self.decision_units, columns=self.choices)
+        logsum = Series(logsum, index=self.decision_units)
 
         return result_frame, logsum
 
