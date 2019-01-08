@@ -19,9 +19,9 @@ class Expression(object):
     dict_literals: Dict[str, pd.Series] = attr.ib()
 
     @staticmethod
-    def parse(e: str, prior_simple: Set[str]=None, prior_chained: Set[str]=None) -> 'Expression':
+    def parse(e: str, prior_simple: Set[str]=None, prior_chained: Set[str]=None, mode='cheval') -> 'Expression':
         tree = ast.parse(e, mode='eval').body
-        transformer = ExpressionParser(prior_simple, prior_chained)
+        transformer = ExpressionParser(prior_simple, prior_chained, mode=mode)
         new_tree = transformer.visit(tree)
 
         new_e = Expression(e, astor.to_source(new_tree), transformer.chained_symbols, transformer.dict_literals)

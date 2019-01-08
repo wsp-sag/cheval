@@ -622,10 +622,10 @@ class LinkedDataFrame(DataFrame):
         #  - Disables converting of logicals to their bitwise versions
         #  - Prepends '@' to all substitutions (DataFrame.eval() specifically needs this to disambiguate from
         #    column names.
-        new_expr = Expression(expr, mode='pandas')
+        new_expr = Expression.parse(expr, mode='pandas')
 
         ld = kwargs['local_dict'] if 'local_dict' in kwargs else {}
-        for link_name, chain_symbol in new_expr.iterchained():
+        for link_name, chain_symbol in new_expr.chains.items():
             assert self._has_link(link_name)
 
             for substitution, chain_tuple in chain_symbol.items():
