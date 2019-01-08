@@ -1,4 +1,4 @@
-# Cheval 2.0
+# Cheval
 
 _Peter Kucirek | WSP_
 
