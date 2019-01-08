@@ -319,7 +319,7 @@ class ChoiceModel(object):
     def _convert_result(self, raw_result: ndarray, astype) -> Series:
         raise NotImplementedError()
 
-    def run_stochastic(self, n_threads: int=1, clear_scope: bool=True, precision: int=8) -> DataFrame:
+    def run_stochastic(self, n_threads: int=1, clear_scope: bool=True, precision: int=8) -> Tuple[DataFrame, Series]:
         """
         For each record, compute the probability distribution of the logit model. A DataFrame will be returned whose
         columns match the sorted list of node names (alternatives) in the model. Probabilities over all alternatives for
@@ -335,6 +335,26 @@ class ChoiceModel(object):
         Returns:
             DataFrame of probabilities of each record x each alternative.
         """
-        pass
+        self.validate_tree()
+        self.validate_scope()
+
+        # Utility computations
+        utility_frame = self._evaluate_utilities(precision=precision)
+        if clear_scope: self.clear_scope()
+        utility_table = utility_frame.values
+
+        # Compute probabilities
+        nb.config.NUMBA_NUM_THREADS = n_threads  # Set the number of threads for parallel execution
+        nested = self.depth > 1
+        if nested:
+            hierarchy, levels, logsum_scales = self._flatten()
+            raw_result, logsum = worker_nested_probabilities(utility_table, hierarchy, levels, logsum_scales)
+        else:
+            raw_result, logsum = worker_multinomial_probabilities(utility_table)
+
+        result_frame = DataFrame(raw_result, index=utility_frame.index, columns=utility_frame.columns)
+        logsum = Series(logsum, index=utility_frame.index)
+
+        return result_frame, logsum
 
     # endregion
