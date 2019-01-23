@@ -547,6 +547,9 @@ class LinkedDataFrame(DataFrame):
         # Other is the parent LDF, self is the slice
         super().__finalize__(other, method=method, **kwargs)
 
+        # Sometimes, other is not a LDF (e.g. _Concatenator)
+        if not isinstance(other, LinkedDataFrame): return self
+
         # Copy the link metadata
         for link_name, link in other.__links.items():
             self.__links[link_name] = link.copy()
