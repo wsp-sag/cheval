@@ -355,19 +355,24 @@ class LinkedDataFrame(DataFrame):
 
     def __getitem__(self, item):
         if isinstance(item, Hashable) and item in self.__links:
-            link = self.__links[item]
-            history = deque([link])
-
-            if link.aggregation_required:
-                return self._LeafAggregation(self.index, history)
-            elif link.chained:
-                return self._LinkNode(self.index, history)
-            else:
-                return self._LinkLeaf(self.index, history)
+            return self._init_link(item)
         return super().__getitem__(item)
 
     def __getattr__(self, item):
-        return self[item]
+        if isinstance(item, Hashable) and item in self.__links:
+            return self._init_link(item)
+        return super().__getattr__(item)
+
+    def _init_link(self, item):
+        link = self.__links[item]
+        history = deque([link])
+
+        if link.aggregation_required:
+            return self._LeafAggregation(self.index, history)
+        elif link.chained:
+            return self._LinkNode(self.index, history)
+        else:
+            return self._LinkLeaf(self.index, history)
 
     def _init_link_history(self, item):
         meta = self.__links[item]
