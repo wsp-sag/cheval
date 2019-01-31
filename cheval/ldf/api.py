@@ -15,7 +15,7 @@ from ..parsing.expressions import Expression
 _FillFunctionType = Callable[[Series], Union[int, float, bool, str]]
 _NUMERIC_AGGREGATIONS = {'max', 'min', 'mean', 'median', 'prod', 'std', 'sum', 'var', 'quantile'}
 _NON_NUMERIC_AGGREGATIONS = {'count', 'first', 'last', 'nth'}
-_SUPPORTED_AGGREGATIONS = _NUMERIC_AGGREGATIONS | _NON_NUMERIC_AGGREGATIONS
+_SUPPORTED_AGGREGATIONS = sorted(_NUMERIC_AGGREGATIONS | _NON_NUMERIC_AGGREGATIONS)
 _NUMERIC_TYPES = {PandasDtype.INT_NAME, PandasDtype.UINT_NAME, PandasDtype.FLOAT_NAME, PandasDtype.BOOL_NAME}
 
 
