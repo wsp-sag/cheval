@@ -644,3 +644,39 @@ class LinkedDataFrame(DataFrame):
         return super().eval(new_expr.transformed, inplace=inplace, local_dict=ld, **kwargs)
 
     # endregion
+
+    def pivot_table(self, values=None, index=None, columns=None,
+                    aggfunc='mean', fill_value=None, margins=False,
+                    dropna=True, margins_name='All'):
+        temp_columns = []
+        try:
+            new_index, temp = self._make_temp_col(index)
+            if temp: temp_columns.append(new_index)
+
+            new_columns, temp = self._make_temp_col(columns)
+            if temp: temp_columns.append(new_index)
+
+            new_values, temp = self._make_temp_col(values)
+            if temp: temp_columns.append(new_values)
+
+            return super().pivot_table(index=new_index, columns=new_columns, values=new_values, aggfunc=aggfunc,
+                                       fill_value=fill_value, margins=margins, dropna=dropna,
+                                       margins_name=margins_name)
+        finally:
+            for c in temp_columns:
+                del self[c]
+
+    def _make_temp_col(self, item: str) -> Tuple[Optional[str], bool]:
+        if item is None: return None, False
+
+        # If the item matches an already-defined column, no need to return a temp column name
+        if item in self: return item, False
+
+        new_column_values = self.eval(item)  # Evaluate the column to find links
+        counter = 0
+        new_column_name = f"temp_{counter}"
+        while new_column_name in self:
+            counter += 1
+            new_column_name = f"temp_{counter}"
+        self[new_column_name] = new_column_values
+        return new_column_name, True
