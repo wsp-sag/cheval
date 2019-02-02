@@ -11,7 +11,7 @@ from numexpr import expressions as nee
 import six
 
 from .exceptions import UnsupportedSyntaxError
-from .expr_items import ChainedSymbol
+from .expr_items import ChainedSymbol, EvaluationMode
 
 NAN_STR = '__NAN'  # This needs to be recognized by other modules
 
@@ -31,8 +31,8 @@ _SUPPORTED_AGGREGATIONS = {
 
 class ExpressionParser(ast.NodeTransformer):
 
-    def __init__(self, prior_simple: Set[str]=None, prior_chained: Set[str]=None, mode='cheval'):
-        self.mode = mode
+    def __init__(self, prior_simple: Set[str]=None, prior_chained: Set[str]=None, mode=EvaluationMode.UTILITIES):
+        self.mode: EvaluationMode = mode
 
         self.dict_literals: Dict[str, pd.Series] = {}
 
@@ -60,8 +60,6 @@ class ExpressionParser(ast.NodeTransformer):
         return node
 
     def visit_unaryop(self, node):
-        if self.mode == 'pandas': return node
-
         # Converts 'not' into '~' which NumExpr supports
         if isinstance(node.op, ast.Not):
             return ast.UnaryOp(op=ast.Invert(), operand=self.visit(node.operand))
@@ -70,8 +68,6 @@ class ExpressionParser(ast.NodeTransformer):
         raise NotImplementedError(type(node.op))
 
     def visit_boolop(self, node):
-        if not self.mode == 'pandas': return node
-
         # Converts 'and' and 'or' into '&' and '|' which NumExpr supports
         # BoolOp objects have a list of values but need to be converted into a tree of BinOps
 
@@ -156,7 +152,8 @@ class ExpressionParser(ast.NodeTransformer):
         return resovled_keys
 
     def visit_dict(self, node):
-        if not self.mode != 'cheval': raise UnsupportedSyntaxError("Dict literals not allowed in this context")
+        if not self.mode != EvaluationMode.UTILITIES:
+            raise UnsupportedSyntaxError("Dict literals not allowed in this context")
 
         substitution = '__dict%s' % len(self.dict_literals)
         new_node = ast.Name(substitution, ast.Load())
@@ -225,7 +222,7 @@ class ExpressionParser(ast.NodeTransformer):
             container = ChainedSymbol(name)
             self.chained_symbols[name] = container
         self.all_chained_symbols.add(name)
-        substitution = container.add_chain(chain, prepend_at=self.mode == 'pandas')
+        substitution = container.add_chain(chain)
 
         return ast.Name(substitution, ast.Load())
 
@@ -266,7 +263,7 @@ class ExpressionParser(ast.NodeTransformer):
             container = ChainedSymbol(name)
             self.chained_symbols[name] = container
         self.all_chained_symbols.add(name)
-        substitution = container.add_chain(chain, func_name, arg_expression, prepend_at=self.mode == 'pandas')
+        substitution = container.add_chain(chain, func_name, arg_expression)
 
         new_node = ast.Name(substitution, ast.Load())
         return new_node

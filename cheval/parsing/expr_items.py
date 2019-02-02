@@ -1,6 +1,7 @@
 """Collection of common classes to store more complex substitutions (e.g. LinkedDataFrame lookup)"""
 from collections import deque, namedtuple
 from typing import Dict, Tuple
+from enum import Enum
 
 ChainTuple = namedtuple("ChainTuple", ['chain', 'func', 'args', 'withfunc'])
 
@@ -29,5 +30,9 @@ class ChainedSymbol(object):
 
     def items(self) -> Tuple[str, ChainTuple]:
         yield from self._lookups.items()
-        # for item in iteritems(self._lookups):
-        #     yield item
+
+
+class EvaluationMode(Enum):
+    UTILITIES = 0  # Called during utility evaluation
+    DATAFRAME = 1  # Called from LinkedDataFrame.eval()
+    MODULE = 2  # Called from cheval.eval()
