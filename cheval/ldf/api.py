@@ -7,10 +7,13 @@ import pandas as pd
 from numpy import ndarray
 import numpy as np
 import attr
+import numexpr as ne
 
 from .constants import LinkageSpecificationError, LinkAggregationRequired
 from .missing_data import SeriesFillManager, infer_dtype, PandasDtype
 from ..parsing.expressions import Expression
+from ..parsing.expr_items import EvaluationMode
+from cheval.misc import convert_series
 
 _FillFunctionType = Callable[[Series], Union[int, float, bool, str]]
 _NUMERIC_AGGREGATIONS = {'max', 'min', 'mean', 'median', 'prod', 'std', 'sum', 'var', 'quantile'}
@@ -620,19 +623,27 @@ class LinkedDataFrame(DataFrame):
 
     # region Expression evaluation
 
-    def eval(self, expr, inplace=False, **kwargs):
-        """Override of DataFrame.eval() to allow link-lookups inside expressions."""
+    def eval(self, expr, *args, **kwargs):
+        """
+        Overload of DataFrame.eval(), which adds string and categorical support, but removes some of the flexibility
+        (such as the inplace arg, and the ability to change engines). Also supports links inside the expression.
 
-        # DataFrame.eval() semantics differ from that of Cheval, so parsing and evaluation need to be handled
-        # differently. So the ExpressionParser now supports 'cheval' and 'pandas' modes. Switching to the 'pandas'
-        # mode has the following effects:
-        #  - Disables dict literals (not supported by Pandas)
-        #  - Disables converting of logicals to their bitwise versions
-        #  - Prepends '@' to all substitutions (DataFrame.eval() specifically needs this to disambiguate from
-        #    column names.
-        new_expr = Expression.parse(expr, mode='pandas')
+        Args:
+            expr:
 
-        ld = kwargs['local_dict'] if 'local_dict' in kwargs else {}
+        Returns:
+
+        """
+
+        new_expr = Expression.parse(expr, mode=EvaluationMode.DATAFRAME)
+
+        ld = {}
+        for column in self:
+            try:
+                ld[column] = convert_series(self[column], allow_raw=False)
+            except TypeError:
+                pass
+
         for link_name, chain_symbol in new_expr.chains.items():
             assert self._has_link(link_name)
 
@@ -646,9 +657,9 @@ class LinkedDataFrame(DataFrame):
                 else:
                     series = node
 
-                new_key = substitution.replace('@', '')  # Drop the @ in the local dict
-                ld[new_key] = series.values[...]
+                ld[substitution] = convert_series(series)
 
-        return super().eval(new_expr.transformed, inplace=inplace, local_dict=ld, **kwargs)
+        vector = ne.evaluate(new_expr.transformed, local_dict=ld)
+        return Series(vector, index=self.index)
 
     # endregion
