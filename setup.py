@@ -16,7 +16,7 @@ setup(
     packages=find_packages(),
     python_requires='>=3.6',
     requires=[
-        'pandas',
+        'pandas >= 0.22, <0.24',
         'numpy',
         'astor',
         'numba',
