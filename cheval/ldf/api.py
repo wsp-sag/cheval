@@ -18,7 +18,7 @@ from cheval.misc import convert_series
 _FillFunctionType = Callable[[Series], Union[int, float, bool, str]]
 _NUMERIC_AGGREGATIONS = {'max', 'min', 'mean', 'median', 'prod', 'std', 'sum', 'var', 'quantile'}
 _NON_NUMERIC_AGGREGATIONS = {'count', 'first', 'last', 'nth'}
-_SUPPORTED_AGGREGATIONS = _NUMERIC_AGGREGATIONS | _NON_NUMERIC_AGGREGATIONS
+_SUPPORTED_AGGREGATIONS = sorted(_NUMERIC_AGGREGATIONS | _NON_NUMERIC_AGGREGATIONS)
 _NUMERIC_TYPES = {PandasDtype.INT_NAME, PandasDtype.UINT_NAME, PandasDtype.FLOAT_NAME, PandasDtype.BOOL_NAME}
 
 
@@ -663,3 +663,59 @@ class LinkedDataFrame(DataFrame):
         return Series(vector, index=self.index)
 
     # endregion
+
+    def pivot_table(self, values=None, index=None, columns=None,
+                    aggfunc='mean', fill_value=None, margins=False,
+                    dropna=True, margins_name='All'):
+        temp_columns = []
+        try:
+            new_index, temp_flags = self._make_temp_col(index)
+            if new_index[0] is None:
+                new_index = None
+            else:
+                for col_name, is_temp in zip(new_index, temp_flags):
+                    if is_temp: temp_columns.append(col_name)
+
+            new_columns, temp_flags = self._make_temp_col(columns)
+            if new_columns[0] is None:
+                new_columns = None
+            else:
+                for col_name, is_temp in zip(new_columns, temp_flags):
+                    if is_temp: temp_columns.append(col_name)
+
+            new_values, temp_flags = self._make_temp_col(values)
+            if new_values[0] is None:
+                new_values = None
+            else:
+                for col_name, is_temp in zip(new_values, temp_flags):
+                    if is_temp: temp_columns.append(col_name)
+
+            return super().pivot_table(index=new_index, columns=new_columns, values=new_values, aggfunc=aggfunc,
+                                       fill_value=fill_value, margins=margins, dropna=dropna,
+                                       margins_name=margins_name)
+        finally:
+            for c in temp_columns:
+                del self[c]
+
+    def _make_temp_col(self, item: Union[str, List[str]]) -> Tuple[List[Optional[str]], List[bool]]:
+        if item is None: return [None], [False]
+
+        item_is_single = isinstance(item, str)
+        items = [item] if item_is_single else item
+
+        new_columns, flags = [], []
+        for sub_item in items:
+            if sub_item in self:
+                new_columns.append(sub_item)
+                flags.append(False)
+            else:
+                new_column_values = self.eval(item)  # Evaluate the column to find links
+                counter = 0
+                new_column_name = f"temp_{counter}"
+                while new_column_name in self:
+                    counter += 1
+                    new_column_name = f"temp_{counter}"
+                self[new_column_name] = new_column_values
+                new_columns.append(new_column_name)
+                flags.append(True)
+        return new_columns, flags
