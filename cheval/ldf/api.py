@@ -650,14 +650,26 @@ class LinkedDataFrame(DataFrame):
                     dropna=True, margins_name='All'):
         temp_columns = []
         try:
-            new_index, temp = self._make_temp_col(index)
-            if temp: temp_columns.append(new_index)
+            new_index, temp_flags = self._make_temp_col(index)
+            if new_index[0] is None:
+                new_index = None
+            else:
+                for col_name, is_temp in zip(new_index, temp_flags):
+                    if is_temp: temp_columns.append(col_name)
 
-            new_columns, temp = self._make_temp_col(columns)
-            if temp: temp_columns.append(new_index)
+            new_columns, temp_flags = self._make_temp_col(columns)
+            if new_columns[0] is None:
+                new_columns = None
+            else:
+                for col_name, is_temp in zip(new_columns, temp_flags):
+                    if is_temp: temp_columns.append(col_name)
 
-            new_values, temp = self._make_temp_col(values)
-            if temp: temp_columns.append(new_values)
+            new_values, temp_flags = self._make_temp_col(values)
+            if new_values[0] is None:
+                new_values = None
+            else:
+                for col_name, is_temp in zip(new_values, temp_flags):
+                    if is_temp: temp_columns.append(col_name)
 
             return super().pivot_table(index=new_index, columns=new_columns, values=new_values, aggfunc=aggfunc,
                                        fill_value=fill_value, margins=margins, dropna=dropna,
@@ -666,17 +678,25 @@ class LinkedDataFrame(DataFrame):
             for c in temp_columns:
                 del self[c]
 
-    def _make_temp_col(self, item: str) -> Tuple[Optional[str], bool]:
-        if item is None: return None, False
+    def _make_temp_col(self, item: Union[str, List[str]]) -> Tuple[List[Optional[str]], List[bool]]:
+        if item is None: return [None], [False]
 
-        # If the item matches an already-defined column, no need to return a temp column name
-        if item in self: return item, False
+        item_is_single = isinstance(item, str)
+        items = [item] if item_is_single else item
 
-        new_column_values = self.eval(item)  # Evaluate the column to find links
-        counter = 0
-        new_column_name = f"temp_{counter}"
-        while new_column_name in self:
-            counter += 1
-            new_column_name = f"temp_{counter}"
-        self[new_column_name] = new_column_values
-        return new_column_name, True
+        new_columns, flags = [], []
+        for sub_item in items:
+            if sub_item in self:
+                new_columns.append(sub_item)
+                flags.append(False)
+            else:
+                new_column_values = self.eval(item)  # Evaluate the column to find links
+                counter = 0
+                new_column_name = f"temp_{counter}"
+                while new_column_name in self:
+                    counter += 1
+                    new_column_name = f"temp_{counter}"
+                self[new_column_name] = new_column_values
+                new_columns.append(new_column_name)
+                flags.append(True)
+        return new_columns, flags
