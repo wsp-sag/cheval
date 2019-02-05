@@ -366,7 +366,9 @@ class ChoiceModel(object):
                 precision requires more memory.
 
         Returns:
-            DataFrame of probabilities of each record x each alternative.
+            (DataFrame, Series):
+                DataFrame: Probabilities of each decision unit x each choice
+                Series: Logsum computed for each decision unit
         """
         self.validate_tree()
         self.validate_scope()
