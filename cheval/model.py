@@ -347,7 +347,6 @@ class ChoiceModel(object):
             retval.name = result_name
         return retval
 
-
     def run_stochastic(self, n_threads: int=1, clear_scope: bool=True, precision: int=8) -> Tuple[DataFrame, Series]:
         """
         For each record, compute the probability distribution of the logit model. A DataFrame will be returned whose
@@ -384,5 +383,29 @@ class ChoiceModel(object):
         logsum = Series(logsum, index=self.decision_units)
 
         return result_frame, logsum
+
+    def compute_utilities_only(self, n_threads: int=1, clear_scope: bool=True, precision: int=8) -> DataFrame:
+        """
+        Do not run the full model, but instead just compute the utility table and return it. This can be useful when
+        building complex nested models; and for when intermediate indexing of the utilieis is required.
+
+        Args:
+            n_threads: The number of threads to uses in the computation. Must be >= 1
+            clear_scope: If True and override_utilities not provided, data stored in the scope for
+                utility computation will be released, freeing up memory. Turning this off is of limited use.
+            precision: The number of bytes to store for each cell in the utility array; one of 1, 2, 4, or 8. More
+                precision requires more memory.
+
+        Returns:
+            DataFrame: Utilities for each choice for each decision unit.
+
+        """
+        self.validate_tree()
+        self.validate_scope()
+
+        utility_table = self._evaluate_utilities(precision=precision)
+        if clear_scope: self.clear_scope()
+
+        return utility_table
 
     # endregion
