@@ -675,6 +675,7 @@ class LinkedDataFrame(DataFrame):
             else:
                 for col_name, is_temp in zip(new_index, temp_flags):
                     if is_temp: temp_columns.append(col_name)
+                if len(new_index) == 1: new_index = new_index[0]
 
             new_columns, temp_flags = self._make_temp_col(columns)
             if new_columns[0] is None:
@@ -682,6 +683,7 @@ class LinkedDataFrame(DataFrame):
             else:
                 for col_name, is_temp in zip(new_columns, temp_flags):
                     if is_temp: temp_columns.append(col_name)
+                if len(new_columns) == 1: new_columns = new_columns[0]
 
             new_values, temp_flags = self._make_temp_col(values)
             if new_values[0] is None:
@@ -689,6 +691,7 @@ class LinkedDataFrame(DataFrame):
             else:
                 for col_name, is_temp in zip(new_values, temp_flags):
                     if is_temp: temp_columns.append(col_name)
+                if len(new_values) == 1: new_values = new_values[0]
 
             return super().pivot_table(index=new_index, columns=new_columns, values=new_values, aggfunc=aggfunc,
                                        fill_value=fill_value, margins=margins, dropna=dropna,
