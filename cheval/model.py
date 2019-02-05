@@ -1,6 +1,7 @@
 from typing import Iterable, List, Dict, Union, Tuple, Iterator, Set
 from collections import deque
 from itertools import chain as iter_chain
+from multiprocessing import cpu_count
 
 from pandas import Series, DataFrame, Index, MultiIndex
 import pandas as pd
@@ -261,7 +262,7 @@ class ChoiceModel(object):
         assert n_draws >= 1
 
         # Utility computations
-        utility_table = self._evaluate_utilities(precision=precision).values
+        utility_table = self._evaluate_utilities(precision=precision, n_threads=n_threads).values
         if clear_scope: self.clear_scope()
 
         # Compute probabilities and sample
@@ -279,9 +280,11 @@ class ChoiceModel(object):
         result = self._convert_result(raw_result, astype, squeeze, result_name)
         return result, logsum
 
-    def _evaluate_utilities(self, precision=8) -> DataFrame:
+    def _evaluate_utilities(self, precision=8, n_threads: int=None) -> DataFrame:
         if self._decision_units is None:
             raise ModelNotReadyError("Decision units must be set before evaluating utility expressions")
+        if n_threads is None:
+            n_threads = cpu_count()
         row_index = self._decision_units
         col_index = self.choices
         r, c = len(row_index), len(col_index)
@@ -294,6 +297,8 @@ class ChoiceModel(object):
         for name in self._expressions.itersimple():
             symbol = self._scope[name]
             shared_locals[name] = symbol._get()
+
+        ne.set_num_threads(n_threads)
 
         for expr in self._expressions:
             # TODO: Add error handling
@@ -367,7 +372,7 @@ class ChoiceModel(object):
         self.validate_scope()
 
         # Utility computations
-        utility_table = self._evaluate_utilities(precision=precision).values
+        utility_table = self._evaluate_utilities(precision=precision, n_threads=n_threads).values
         if clear_scope: self.clear_scope()
 
         # Compute probabilities
@@ -403,7 +408,7 @@ class ChoiceModel(object):
         self.validate_tree()
         self.validate_scope()
 
-        utility_table = self._evaluate_utilities(precision=precision)
+        utility_table = self._evaluate_utilities(precision=precision, n_threads=n_threads)
         if clear_scope: self.clear_scope()
 
         return utility_table
