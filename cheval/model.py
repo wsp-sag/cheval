@@ -389,7 +389,7 @@ class ChoiceModel(object):
 
         return result_frame, logsum
 
-    def compute_utilities_only(self, n_threads: int=1, clear_scope: bool=True, precision: int=8) -> DataFrame:
+    def evaluate_utilities_only(self, n_threads: int=1, clear_scope: bool=True, precision: int=8) -> DataFrame:
         """
         Do not run the full model, but instead just compute the utility table and return it. This can be useful when
         building complex nested models; and for when intermediate indexing of the utilieis is required.
