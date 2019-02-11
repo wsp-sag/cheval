@@ -55,8 +55,12 @@ class ChoiceNode(object):
         return self._level
 
     @property
-    def is_parent(self):
+    def is_parent(self) -> bool:
         return len(self._children) > 0
+
+    @property
+    def n_children(self) -> int:
+        return len(self._children)
 
     def children(self):
         yield from self._children.values()

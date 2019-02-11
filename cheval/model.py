@@ -216,7 +216,7 @@ class ChoiceModel(object):
             raise ModelNotReadyError("At least two or more choices must be defined")
 
         for c in self._all_children():
-            n_children = len(c.children())
+            n_children = c.n_children
             if n_children == 1:
                 raise ModelNotReadyError("In a nested model, all sub-choices must have 0, or 2 or more children")
 
