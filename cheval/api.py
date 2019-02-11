@@ -211,7 +211,7 @@ class TableSymbol(AbstractSymbol):
 
     def assign(self, data):
         assert isinstance(data, pd.DataFrame)
-        index_to_check = self._parent.decision_units if self._orientation else self._parent.choices
+        index_to_check = self._parent.decision_units if self._orientation == 0 else self._parent.choices
         assert data.index.equals(index_to_check), "DataFrame index does not match context rows or columns"
 
         for column in self._mandatory_attributes:
