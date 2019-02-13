@@ -2,6 +2,7 @@ from typing import Iterable, List, Dict, Union, Tuple, Iterator, Set
 from collections import deque
 from itertools import chain as iter_chain
 from multiprocessing import cpu_count
+from logging import Logger
 
 from pandas import Series, DataFrame, Index, MultiIndex
 import pandas as pd
@@ -227,10 +228,10 @@ class ChoiceModel(object):
 
         # TODO: Check that symbols are also assigned
 
-    def run_discrete(self, *, random_seed: Union[np.random.RandomState, int]=None, n_draws: int=1,
+    def run_discrete(self, *, random_seed: int=None, n_draws: int=1,
                      astype: Union[str, np.dtype]='category', squeeze: bool=True, n_threads: int=1,
-                     clear_scope: bool=True, precision: int=8, result_name: str=None
-                     ) -> Union[Tuple[Series, Series], Tuple[DataFrame, Series]]:
+                     clear_scope: bool=True, precision: int=8, result_name: str=None, logger: Logger=None
+                     ) -> Tuple[Union[DataFrame, Series], Series]:
         """
         For each decision unit, discretely sample one or more times (with replacement) from the probability
         distribution.
@@ -262,7 +263,7 @@ class ChoiceModel(object):
         assert n_draws >= 1
 
         # Utility computations
-        utility_table = self._evaluate_utilities(precision=precision, n_threads=n_threads).values
+        utility_table = self._evaluate_utilities(precision=precision, n_threads=n_threads, logger=logger).values
         if clear_scope: self.clear_scope()
 
         # Compute probabilities and sample
@@ -280,11 +281,12 @@ class ChoiceModel(object):
         result = self._convert_result(raw_result, astype, squeeze, result_name)
         return result, logsum
 
-    def _evaluate_utilities(self, precision=8, n_threads: int=None) -> DataFrame:
+    def _evaluate_utilities(self, precision=8, n_threads: int=None, logger: Logger=None) -> DataFrame:
         if self._decision_units is None:
             raise ModelNotReadyError("Decision units must be set before evaluating utility expressions")
         if n_threads is None:
             n_threads = cpu_count()
+        if logger is not None: logger.debug("Allocating utility table")
         row_index = self._decision_units
         col_index = self.choices
         r, c = len(row_index), len(col_index)
@@ -292,6 +294,7 @@ class ChoiceModel(object):
         dtype_str = "f%s" % precision
         utilities = np.zeros([r, c], dtype=dtype_str)
 
+        if logger is not None: logger.debug("Building shared locals")
         # Prepare locals, including scalar, vector, and matrix variables that don't need any further processing.
         shared_locals = {NAN_STR: np.nan, OUT_STR: utilities}
         for name in self._expressions.itersimple():
@@ -301,17 +304,18 @@ class ChoiceModel(object):
         ne.set_num_threads(n_threads)
 
         for expr in self._expressions:
+            if logger is not None: logger.debug(f"Evaluating expression '{expr.raw}'")
             # TODO: Add error handling
             # TODO: Add support for watching particular rows and logging the results
 
             local_dict = shared_locals.copy()  # Make a shallow copy of the shared symbols
 
             # Add in any dict literals, expanding them to cover all choices
-            for substitution, series in expr.dict_literals:
+            for substitution, series in expr.dict_literals.items():
                 local_dict[substitution] = series.reindex(col_index, fill_value=0)
 
             # Evaluate any chains on-the-fly
-            for symbol_name, usages in expr.chains:
+            for symbol_name, usages in expr.chains.items():
                 symbol = self._scope[symbol_name]
                 for substitution, chain_info in usages.items():
                     data = symbol._get(chain_info=chain_info)
@@ -352,7 +356,8 @@ class ChoiceModel(object):
             retval.name = result_name
         return retval
 
-    def run_stochastic(self, n_threads: int=1, clear_scope: bool=True, precision: int=8) -> Tuple[DataFrame, Series]:
+    def run_stochastic(self, n_threads: int=1, clear_scope: bool=True, precision: int=8, logger: Logger=None
+                       ) -> Tuple[DataFrame, Series]:
         """
         For each record, compute the probability distribution of the logit model. A DataFrame will be returned whose
         columns match the sorted list of node names (alternatives) in the model. Probabilities over all alternatives for
@@ -374,7 +379,7 @@ class ChoiceModel(object):
         self.validate_scope()
 
         # Utility computations
-        utility_table = self._evaluate_utilities(precision=precision, n_threads=n_threads).values
+        utility_table = self._evaluate_utilities(precision=precision, n_threads=n_threads, logger=logger).values
         if clear_scope: self.clear_scope()
 
         # Compute probabilities
@@ -391,7 +396,8 @@ class ChoiceModel(object):
 
         return result_frame, logsum
 
-    def evaluate_utilities_only(self, n_threads: int=1, clear_scope: bool=True, precision: int=8) -> DataFrame:
+    def evaluate_utilities_only(self, n_threads: int=1, clear_scope: bool=True, precision: int=8,
+                                logger: Logger=None) -> DataFrame:
         """
         Do not run the full model, but instead just compute the utility table and return it. This can be useful when
         building complex nested models; and for when intermediate indexing of the utilieis is required.
@@ -410,7 +416,7 @@ class ChoiceModel(object):
         self.validate_tree()
         self.validate_scope()
 
-        utility_table = self._evaluate_utilities(precision=precision, n_threads=n_threads)
+        utility_table = self._evaluate_utilities(precision=precision, n_threads=n_threads, logger=logger)
         if clear_scope: self.clear_scope()
 
         return utility_table
