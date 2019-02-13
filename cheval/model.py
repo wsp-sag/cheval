@@ -227,7 +227,7 @@ class ChoiceModel(object):
 
         # TODO: Check that symbols are also assigned
 
-    def run_discrete(self, *, random_seed: Union[np.random.RandomState, int]=None, n_draws: int=1,
+    def run_discrete(self, *, random_seed: int=None, n_draws: int=1,
                      astype: Union[str, np.dtype]='category', squeeze: bool=True, n_threads: int=1,
                      clear_scope: bool=True, precision: int=8, result_name: str=None
                      ) -> Union[Tuple[Series, Series], Tuple[DataFrame, Series]]:
@@ -307,11 +307,11 @@ class ChoiceModel(object):
             local_dict = shared_locals.copy()  # Make a shallow copy of the shared symbols
 
             # Add in any dict literals, expanding them to cover all choices
-            for substitution, series in expr.dict_literals:
+            for substitution, series in expr.dict_literals.items():
                 local_dict[substitution] = series.reindex(col_index, fill_value=0)
 
             # Evaluate any chains on-the-fly
-            for symbol_name, usages in expr.chains:
+            for symbol_name, usages in expr.chains.items():
                 symbol = self._scope[symbol_name]
                 for substitution, chain_info in usages.items():
                     data = symbol._get(chain_info=chain_info)
