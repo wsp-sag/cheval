@@ -230,7 +230,7 @@ class TableSymbol(AbstractSymbol):
         if chained:
             assert isinstance(self._table, LinkedDataFrame)
             item = self._table
-            for item_name in chain_info.chain:
+            for item_name in reversed(chain_info.chain):
                 item = item[item_name]
 
             if chain_info.withfunc:
