@@ -641,7 +641,7 @@ class LinkedDataFrame(DataFrame):
 
         new_expr = Expression.parse(expr, mode=EvaluationMode.DATAFRAME)
 
-        ld = {}
+        ld = {} if 'local_dict' not in kwargs else kwargs['local_dict'].copy()
         for column in self:
             try:
                 ld[column] = convert_series(self[column], allow_raw=False)
