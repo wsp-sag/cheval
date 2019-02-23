@@ -142,7 +142,11 @@ class _LinkMeta:
             self.other_grouper = flat_grouper
             self.flat_indexer = group_labels.get_indexer_for(self_indexer)
         else:
-            self.flat_indexer = other_indexer.get_indexer(self_indexer)
+            if self_indexer.equals(other_indexer):
+                flat_indexer = np.arange(len(other_indexer))
+            else:
+                flat_indexer = other_indexer.get_indexer(self_indexer)
+            self.flat_indexer = flat_indexer
 
     @property
     def indexer(self) -> ndarray:
@@ -637,7 +641,7 @@ class LinkedDataFrame(DataFrame):
 
         new_expr = Expression.parse(expr, mode=EvaluationMode.DATAFRAME)
 
-        ld = {}
+        ld = {} if 'local_dict' not in kwargs else kwargs['local_dict'].copy()
         for column in self:
             try:
                 ld[column] = convert_series(self[column], allow_raw=False)
