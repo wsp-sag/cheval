@@ -595,50 +595,6 @@ class LinkedDataFrame(DataFrame):
 
     # endregion
 
-    def link_summary(self) -> DataFrame:
-        """
-        Produces a table summarizing all outgoing links from this frame.
-
-        Returns:
-            DataFrame: Has the following columns:
-                - name: The assigned name of the link
-                - target_shape: The shape of the "other" frame
-                - on_self: String indicating which columns or levels in THIS frame used for the join
-                - on_other: String indicating which columns or levels in the OTHER frame used for the join
-                - chained: Flag indicating if the target frame also supports links
-                - aggregation: Flag indicating if the relationship must be aggregated
-                - preindexed: Flag indicating if the relationship has already been indexed.
-
-        """
-        summary_table = {'name': [], 'target_shape': [], 'on_self': [], 'on_other': [], 'chained': [],
-                         'aggregation': [], 'preindexed': []}
-        for name, entry in self.__links.items():
-            summary_table['name'].append(name)
-            summary_table['target_shape'].append(str(entry.other.shape))
-            summary_table['on_self'].append(str(entry.self_meta))
-            summary_table['on_other'].append(str(entry.other_meta))
-            summary_table['chained'].append(entry.chained)
-            summary_table['aggregation'].append(entry.aggregation_required)
-            summary_table['preindexed'].append(entry.flat_indexer is not None)
-
-        df = DataFrame(summary_table)
-        df.set_index('name', inplace=True)
-        return df
-
-    def compute_indexers(self, refresh: bool=True):
-        """
-        For all outoing links, compute any missing indexers (precompute=False when calling link_to()), or refresh
-        already-computed indexers.
-
-        Args:
-            refresh: If False, indexers will only be computed for links without them. Otherwise, this forces indexers
-                to be re-computed.
-        """
-
-        for entry in self.__links.values():
-            if refresh or entry.flat_indexer is None:
-                entry.precompute()
-
     # region Expression evaluation
 
     def eval(self, expr, *args, **kwargs):
@@ -681,6 +637,52 @@ class LinkedDataFrame(DataFrame):
         return Series(vector, index=self.index)
 
     # endregion
+
+    # region Other methods
+
+    def link_summary(self) -> DataFrame:
+        """
+        Produces a table summarizing all outgoing links from this frame.
+
+        Returns:
+            DataFrame: Has the following columns:
+                - name: The assigned name of the link
+                - target_shape: The shape of the "other" frame
+                - on_self: String indicating which columns or levels in THIS frame used for the join
+                - on_other: String indicating which columns or levels in the OTHER frame used for the join
+                - chained: Flag indicating if the target frame also supports links
+                - aggregation: Flag indicating if the relationship must be aggregated
+                - preindexed: Flag indicating if the relationship has already been indexed.
+
+        """
+        summary_table = {'name': [], 'target_shape': [], 'on_self': [], 'on_other': [], 'chained': [],
+                         'aggregation': [], 'preindexed': []}
+        for name, entry in self.__links.items():
+            summary_table['name'].append(name)
+            summary_table['target_shape'].append(str(entry.other.shape))
+            summary_table['on_self'].append(str(entry.self_meta))
+            summary_table['on_other'].append(str(entry.other_meta))
+            summary_table['chained'].append(entry.chained)
+            summary_table['aggregation'].append(entry.aggregation_required)
+            summary_table['preindexed'].append(entry.flat_indexer is not None)
+
+        df = DataFrame(summary_table)
+        df.set_index('name', inplace=True)
+        return df
+
+    def compute_indexers(self, refresh: bool = True):
+        """
+        For all outoing links, compute any missing indexers (precompute=False when calling link_to()), or refresh
+        already-computed indexers.
+
+        Args:
+            refresh: If False, indexers will only be computed for links without them. Otherwise, this forces indexers
+                to be re-computed.
+        """
+
+        for entry in self.__links.values():
+            if refresh or entry.flat_indexer is None:
+                entry.precompute()
 
     def pivot_table(self, values=None, index=None, columns=None,
                     aggfunc='mean', fill_value=None, margins=False,
@@ -740,3 +742,5 @@ class LinkedDataFrame(DataFrame):
                 new_columns.append(new_column_name)
                 flags.append(True)
         return new_columns, flags
+
+    # endregion
