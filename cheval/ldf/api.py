@@ -189,27 +189,27 @@ class LinkedDataFrame(DataFrame):
     # region Static Readers
 
     @staticmethod
-    def read_csv(*args, **kwargs):
+    def read_csv(*args, **kwargs) -> 'LinkedDataFrame':
         return LinkedDataFrame(pd.read_csv(*args, **kwargs))
 
     @staticmethod
-    def read_table(*args, **kwargs):
+    def read_table(*args, **kwargs) -> 'LinkedDataFrame':
         return LinkedDataFrame(pd.read_table(*args, **kwargs))
 
     @staticmethod
-    def read_clipboard(*args, **kwargs):
+    def read_clipboard(*args, **kwargs) -> 'LinkedDataFrame':
         return LinkedDataFrame(pd.read_clipboard(*args, **kwargs))
 
     @staticmethod
-    def read_excel(*args, **kwargs):
+    def read_excel(*args, **kwargs) -> 'LinkedDataFrame':
         return LinkedDataFrame(pd.read_excel(*args, **kwargs))
 
     @staticmethod
-    def read_fwf(*args, **kwargs):
+    def read_fwf(*args, **kwargs) -> 'LinkedDataFrame':
         return LinkedDataFrame(pd.read_fwf(*args, **kwargs))
 
     @staticmethod
-    def read_(name, *args, **kwargs):
+    def read_(name, *args, **kwargs) -> 'LinkedDataFrame':
         func = getattr(pd, f"read_{name}")
         return LinkedDataFrame(func(*args, **kwargs))
 
