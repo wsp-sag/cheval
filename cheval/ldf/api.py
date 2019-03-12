@@ -596,6 +596,20 @@ class LinkedDataFrame(DataFrame):
     # endregion
 
     def link_summary(self) -> DataFrame:
+        """
+        Produces a table summarizing all outgoing links from this frame.
+
+        Returns:
+            DataFrame: Has the following columns:
+                - name: The assigned name of the link
+                - target_shape: The shape of the "other" frame
+                - on_self: String indicating which columns or levels in THIS frame used for the join
+                - on_other: String indicating which columns or levels in the OTHER frame used for the join
+                - chained: Flag indicating if the target frame also supports links
+                - aggregation: Flag indicating if the relationship must be aggregated
+                - preindexed: Flag indicating if the relationship has already been indexed.
+
+        """
         summary_table = {'name': [], 'target_shape': [], 'on_self': [], 'on_other': [], 'chained': [],
                          'aggregation': [], 'preindexed': []}
         for name, entry in self.__links.items():
