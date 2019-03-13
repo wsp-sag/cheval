@@ -743,4 +743,23 @@ class LinkedDataFrame(DataFrame):
                 flags.append(True)
         return new_columns, flags
 
+    def get_link_target(self, name) -> Union[DataFrame, 'LinkedDataFrame']:
+        """
+        Gets the referenced target ("other") of an outbound link. This is useful when the original
+        reference to the targeted frame is no longer available, or to to modify the fill management of that
+        target.
+
+        Args:
+            name: The name of the link alias.
+
+        Returns:
+            DataFrame: The targeted "other" frame of the link, if the link is not chained.
+            LinkedDataFrame: The targeted "other" frame of the link, if the link IS chained
+
+        Raises:
+            KeyError: When the specified name is not a link.
+
+        """
+        return self.__links[name].other
+
     # endregion
