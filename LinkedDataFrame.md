@@ -181,21 +181,21 @@ hood, LinkedDataFrame makes use of the Pandas `DataFrameGroupBy` object,
 so available keyword arguments can be found on the Pandas website 
 
 Currently supported numeric reductions are:
-- (`sum(expr="1", *, int_fill=-1)`)[https://pandas.pydata.org/pandas-docs/version/0.23.0/generated/pandas.core.groupby.GroupBy.prod.html#pandas.core.groupby.GroupBy.prod]
-- (`max(expr="1", *, int_fill=-1)`)[https://pandas.pydata.org/pandas-docs/version/0.23.0/generated/pandas.core.groupby.GroupBy.max.html#pandas.core.groupby.GroupBy.max]
-- (`min(expr="1", *, int_fill=-1)`)[https://pandas.pydata.org/pandas-docs/version/0.23.0/generated/pandas.core.groupby.GroupBy.min.html#pandas.core.groupby.GroupBy.min]
-- (`mean(expr="1", *, int_fill=-1)`)[https://pandas.pydata.org/pandas-docs/version/0.23.0/generated/pandas.core.groupby.GroupBy.mean.html#pandas.core.groupby.GroupBy.mean] 
-- (`median(expr="1", *, int_fill=-1)`)[https://pandas.pydata.org/pandas-docs/version/0.23.0/generated/pandas.core.groupby.GroupBy.median.html#pandas.core.groupby.GroupBy.median]
-- (`prod(expr="1", *, int_fill=-1)`)[https://pandas.pydata.org/pandas-docs/version/0.23.0/generated/pandas.core.groupby.GroupBy.prod.html#pandas.core.groupby.GroupBy.prod]
-- (`std(expr="1", *, int_fill=-1)`)[https://pandas.pydata.org/pandas-docs/version/0.23.0/generated/pandas.core.groupby.GroupBy.std.html#pandas.core.groupby.GroupBy.std]
-- (`quantile(expr="1", *, int_fill=-1, q=0.5)`)[https://pandas.pydata.org/pandas-docs/version/0.23.0/generated/pandas.core.groupby.DataFrameGroupBy.quantile.html#pandas.core.groupby.DataFrameGroupBy.quantile]
-- (`var(expr="1", *, int_fill=-1)`)[https://pandas.pydata.org/pandas-docs/version/0.23.0/generated/pandas.core.groupby.GroupBy.var.html#pandas.core.groupby.GroupBy.var]
+ - [`sum(expr="1", *, int_fill=-1)`](https://pandas.pydata.org/pandas-docs/version/0.23.0/generated/pandas.core.groupby.GroupBy.prod.html#pandas.core.groupby.GroupBy.prod)
+ - [`max(expr="1", *, int_fill=-1)`](https://pandas.pydata.org/pandas-docs/version/0.23.0/generated/pandas.core.groupby.GroupBy.max.html#pandas.core.groupby.GroupBy.max)
+ - [`min(expr="1", *, int_fill=-1)`](https://pandas.pydata.org/pandas-docs/version/0.23.0/generated/pandas.core.groupby.GroupBy.min.html#pandas.core.groupby.GroupBy.min)
+ - [`mean(expr="1", *, int_fill=-1)`](https://pandas.pydata.org/pandas-docs/version/0.23.0/generated/pandas.core.groupby.GroupBy.mean.html#pandas.core.groupby.GroupBy.mean) 
+ - [`median(expr="1", *, int_fill=-1)`](https://pandas.pydata.org/pandas-docs/version/0.23.0/generated/pandas.core.groupby.GroupBy.median.html#pandas.core.groupby.GroupBy.median)
+ - [`prod(expr="1", *, int_fill=-1)`](https://pandas.pydata.org/pandas-docs/version/0.23.0/generated/pandas.core.groupby.GroupBy.prod.html#pandas.core.groupby.GroupBy.prod)
+ - [`std(expr="1", *, int_fill=-1)`](https://pandas.pydata.org/pandas-docs/version/0.23.0/generated/pandas.core.groupby.GroupBy.std.html#pandas.core.groupby.GroupBy.std)
+ - [`quantile(expr="1", *, int_fill=-1, q=0.5)`](https://pandas.pydata.org/pandas-docs/version/0.23.0/generated/pandas.core.groupby.DataFrameGroupBy.quantile.html#pandas.core.groupby.DataFrameGroupBy.quantile)
+ - [`var(expr="1", *, int_fill=-1)`](https://pandas.pydata.org/pandas-docs/version/0.23.0/generated/pandas.core.groupby.GroupBy.var.html#pandas.core.groupby.GroupBy.var)
 
 The following reductions provide additional support for non-numeric data:
-- (`count(expr="1")`)[https://pandas.pydata.org/pandas-docs/version/0.23.0/generated/pandas.core.groupby.GroupBy.count.html#pandas.core.groupby.GroupBy.count]
-- (`first(expr="1")`)[https://pandas.pydata.org/pandas-docs/version/0.23.0/generated/pandas.core.groupby.GroupBy.first.html#pandas.core.groupby.GroupBy.first]
-- (`last(expr="1")`)[https://pandas.pydata.org/pandas-docs/version/0.23.0/generated/pandas.core.groupby.GroupBy.last.html#pandas.core.groupby.GroupBy.last]
-- (`nth(expr="1", *, n=1)`)[https://pandas.pydata.org/pandas-docs/version/0.23.0/generated/pandas.core.groupby.GroupBy.nth.html#pandas.core.groupby.GroupBy.nth]
+ - [`count(expr="1")`](https://pandas.pydata.org/pandas-docs/version/0.23.0/generated/pandas.core.groupby.GroupBy.count.html#pandas.core.groupby.GroupBy.count)
+ - [`first(expr="1")`](https://pandas.pydata.org/pandas-docs/version/0.23.0/generated/pandas.core.groupby.GroupBy.first.html#pandas.core.groupby.GroupBy.first)
+ - [`last(expr="1")`](https://pandas.pydata.org/pandas-docs/version/0.23.0/generated/pandas.core.groupby.GroupBy.last.html#pandas.core.groupby.GroupBy.last)
+ - [`nth(expr="1", *, n=1)`](https://pandas.pydata.org/pandas-docs/version/0.23.0/generated/pandas.core.groupby.GroupBy.nth.html#pandas.core.groupby.GroupBy.nth)
 
 ## Missing data
 LinkedDataFrames support incomplete linkages, filling with a `null`-like 
@@ -234,9 +234,9 @@ columns or rows. The resulting LinkedDataFrame will have silently
 discarded any links it could not establish.
 
 ### Adding new columns
-Adding new columns to targeting (or `other`) frames _after establishing
-a link_ is supported. Downstream links will be able to access the new
-column(s) without any hassle.
+Adding new columns to targeting (or `other`) frames _even after 
+establishing a link_ is supported. Downstream links will be able to 
+access the new column(s) without any hassle.
 
 ### Adding new rows or concatenating
 Not supported. The indexers are designed to be fixed; and as it is not
