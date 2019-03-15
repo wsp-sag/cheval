@@ -1,13 +1,13 @@
 # Linked DataFrames
 
-LinkedDataFrames offer an alternative syntax for working with relational 
-data frames, allowing tables to be linked together and accessed as 
-Python properties. Its main component is the `LinkedDataFrame` class 
-which extends the [Pandas DataFrame](http://pandas.pydata.org/pandas-docs/stable/api.html#dataframe) 
-class by adding a `link_to()` method. This method allows one-way links 
-to be created to other data frames and associated with an alias. 
-Columns in the other table can be accessed *through* the link, and are 
-re-indexed (and/or aggregated) on-the-fly to match the original frame. 
+`cheval.LinkedDataFrame` is a subclass of `pandas.DataFrame`, which 
+supports linking frames to other frames. These links can be accessed 
+like normal columns or attributes of the LinkedDataFrame, even for 
+many-to-one and one-to-many relationships. For example, a common 
+practice in agent-based modelling is to have a table of Households and 
+a table of Persons. Using LinkedDataFrame, persons can access attributes
+of the household (for example, income) using a simple
+syntax: `persons.household.income`.
 
 Let's say you want to represent a population of Vehicles and Households,
  where a Vehicle belongs to a Household, and a Household has a 
