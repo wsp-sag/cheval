@@ -101,8 +101,7 @@ class ChoiceNode(object):
 
 class ExpressionGroup(object):
 
-    def __init__(self, root: 'ChoiceModel'):
-        self.root: 'ChoiceModel' = root
+    def __init__(self):
         self._expressions: List[Expression] = []
         self._simple_symbols: Set[str] = set()
         self._chained_symbols: Set[str] = set()
@@ -126,6 +125,19 @@ class ExpressionGroup(object):
 
     def __iter__(self) -> Generator[Expression, None, None]:
         yield from self._expressions
+
+    def __add__(self, other: 'ExpressionGroup') -> 'ExpressionGroup':
+        new = ExpressionGroup()
+
+        new._simple_symbols = self._simple_symbols | other._simple_symbols
+        new._chained_symbols = self._chained_symbols | other._chained_symbols
+        new._expressions = self._expressions + other._expressions
+
+        return new
+
+    def tolist(self, raw=True):
+        if raw: return [e.raw for e in self._expressions]
+        return [e for e in self._expressions]
 
 
 class AbstractSymbol(object, metaclass=abc.ABCMeta):
@@ -254,14 +266,15 @@ class TableSymbol(AbstractSymbol):
 
 class MatrixSymbol(AbstractSymbol):
 
-    def __init__(self, parent: 'ChoiceModel', name: str, allow_transpose: bool=True):
+    def __init__(self, parent: 'ChoiceModel', name: str, allow_transpose: bool=True, allow_row_reindex=True,
+                 allow_col_reindex=True):
         super().__init__(parent, name)
         self._allow_transpose = bool(allow_transpose)
         self._matrix: np.ndarray = None
 
     def assign(self, data):
-        rows = self._parent.rows
-        cols = self._parent.cols
+        rows = self._parent.decision_units
+        cols = self._parent.choices
 
         if isinstance(data, pd.DataFrame):
             if rows.equals(data.index) and cols.equals(data.columns):

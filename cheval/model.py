@@ -26,7 +26,7 @@ class ChoiceModel(object):
     def __init__(self):
         self._max_level: int = 0
         self._top_children: Dict[str, ChoiceNode] = {}
-        self._expressions: ExpressionGroup = ExpressionGroup(self)
+        self._expressions: ExpressionGroup = ExpressionGroup()
         self._scope: Dict[str, AbstractSymbol] = {}
         self._decision_units: Index = None
 
