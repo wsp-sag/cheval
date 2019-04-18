@@ -501,16 +501,21 @@ class LinkedDataFrame(DataFrame):
                     raise RuntimeError(f"Results of evaluation '{expr}' is non-numeric type {series_type}, which is not"
                                        f" allowed for aggregation function '{self._func_name}'")
 
-                grouped = evaluation.groupby(grouper)
-                array = getattr(grouped, self._func_name)(**kwargs).values
-
                 # A fill value of NaN is only disallowed for integer types
                 fill_value = np.nan
                 if series_type == PandasDtype.INT_NAME:
                     fill_value = int_fill
                 elif series_type == PandasDtype.TIME_NAME:
                     raise NotImplementedError("Haven't found a way to instantiate NaT filler")
-                return self._owner._resolve_history(array, fill_value)
+
+                grouped = evaluation.groupby(grouper)
+                series = getattr(grouped, self._func_name)(**kwargs)
+
+                if not series.index.equals(grouper):
+                    # In some cases (like nth), the returned array is missing some values
+                    series = series.reindex(grouper, fill_value=fill_value)
+
+                return self._owner._resolve_history(series.values, fill_value)
 
     # endregion
 
