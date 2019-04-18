@@ -17,6 +17,7 @@ class Expression(object):
     transformed: str = attr.ib()
     chains: Dict[str, ChainedSymbol] = attr.ib()
     dict_literals: Dict[str, pd.Series] = attr.ib()
+    symbols: Set[str] = attr.ib()
 
     @staticmethod
     def parse(e: str, prior_simple: Set[str]=None, prior_chained: Set[str]=None, mode='cheval') -> 'Expression':
@@ -24,5 +25,10 @@ class Expression(object):
         transformer = ExpressionParser(prior_simple, prior_chained, mode=mode)
         new_tree = transformer.visit(tree)
 
-        new_e = Expression(e, astor.to_source(new_tree), transformer.chained_symbols, transformer.dict_literals)
+        new_e = Expression(e, astor.to_source(new_tree), transformer.chained_symbols, transformer.dict_literals,
+                           transformer.simple_symbols)
         return new_e
+
+    @property
+    def all_symbols(self) -> Set[str]:
+        return self.symbols | set(self.chains.keys())
