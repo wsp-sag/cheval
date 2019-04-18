@@ -18,6 +18,7 @@ def convert_series(s: pd.Series, allow_raw=False) -> np.ndarray:
         return categorical.astype(typename)
     elif dtype.name == 'object':
         # Object or text column
+        # This is much slower than other dtypes, but it can't be helped. For now, users should just use Categoricals
         max_length = s.str.len().max()
         if np.isnan(max_length):
             raise TypeError("Could not get max string length")
