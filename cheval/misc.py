@@ -29,6 +29,6 @@ def convert_series(s: pd.Series, allow_raw=False) -> np.ndarray:
         raise TypeError("Timedelta columns are not supported")
     try:
         return s.values[...]
-    except:
+    except AttributeError:
         if allow_raw: return s
         raise
