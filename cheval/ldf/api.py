@@ -283,6 +283,9 @@ class LinkedDataFrame(DataFrame):
             KeyError: For linkages using columns or level not in this or the other DataFrame.
 
         """
+        if other.columns.nlevels != 1:
+            raise NotImplementedError("Cannot link to tables with multi-level columns")
+
         on_not_none = on is not None
         levels_not_none = levels is not None
 
