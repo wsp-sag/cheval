@@ -652,11 +652,11 @@ class LinkedDataFrame(DataFrame):
                 pass
 
         for link_name, chain_symbol in new_expr.chains.items():
-            assert self._has_link(link_name)
+            assert self._has_link(link_name), f"Link '{link_name}' does not exist"
 
             for substitution, chain_tuple in chain_symbol.items():
                 node = self[link_name]
-                for attribute_name in chain_tuple.chain:
+                for attribute_name in reversed(chain_tuple.chain):
                     node = node[attribute_name]
 
                 if chain_tuple.withfunc:
