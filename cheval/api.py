@@ -20,7 +20,7 @@ class ChoiceNode(object):
 
     def __init__(self, name: str, parent: 'ChoiceNode'=None, logsum_scale: float=1.0,
                  level: int=0):
-        assert name != ".", 'Choice node name cannot be "."'
+        assert '.' not in name, 'Choice node name cannot contain "."'
         assert 0.0 < logsum_scale <= 1.0, "Logsum scale must be in hte interval (0, 1], got %s" % logsum_scale
 
         self._name: str = str(name)
@@ -152,7 +152,7 @@ class AbstractSymbol(object, metaclass=abc.ABCMeta):
     @abc.abstractmethod
     def _get(self, **kwargs) -> Union[float, np.ndarray]: pass
 
-    @abc.abstractclassmethod
+    @abc.abstractmethod
     def empty(self): pass
 
 
