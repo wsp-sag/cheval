@@ -260,7 +260,11 @@ class ChoiceModel(object):
             result_name: Name for the result Series or name of the columns of the result DataFrame. Purely aesthetic.
 
         Returns:
-            Series or DataFrame, depending on squeeze and n_draws. The dtype of the returned object depends on astype.
+            Tuple[DataFrame or Series, Series]: The first item returned is always the results of the model evaluation,
+                representing the choice(s) made by each decision unit. If n_draws > 1, the result is a DataFrame, with
+                n_draws columns, otherwise a Series. The second item is the top-level logsum term from the logit model,
+                for each decision unit. This is always a Series, as its value doesn't change with the number of draws.
+
         """
         self.validate_tree()
         self.validate_scope()
@@ -396,9 +400,12 @@ class ChoiceModel(object):
                 precision requires more memory.
 
         Returns:
-            (DataFrame, Series):
-                DataFrame: Probabilities of each decision unit x each choice
-                Series: Logsum computed for each decision unit
+            Tuple[DataFrame, Series]: The first item returned is always the results of the model evaluation,
+                representing the probabilities of each decision unit picking each choice. The columns of the result
+                table represent choices in this model; if this is a multinomial logit model then this will be a simple
+                string index. Nested logit models, however, will have a MultiIndex columns, with a number of levels
+                equal to the max depth of nesting. The second item is the top-level logsum term from the logit model,
+                for each decision unit.
         """
         self.validate_tree()
         self.validate_scope()

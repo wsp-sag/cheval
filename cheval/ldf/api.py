@@ -189,27 +189,27 @@ class LinkedDataFrame(DataFrame):
     # region Static Readers
 
     @staticmethod
-    def read_csv(*args, **kwargs):
+    def read_csv(*args, **kwargs) -> 'LinkedDataFrame':
         return LinkedDataFrame(pd.read_csv(*args, **kwargs))
 
     @staticmethod
-    def read_table(*args, **kwargs):
+    def read_table(*args, **kwargs) -> 'LinkedDataFrame':
         return LinkedDataFrame(pd.read_table(*args, **kwargs))
 
     @staticmethod
-    def read_clipboard(*args, **kwargs):
+    def read_clipboard(*args, **kwargs) -> 'LinkedDataFrame':
         return LinkedDataFrame(pd.read_clipboard(*args, **kwargs))
 
     @staticmethod
-    def read_excel(*args, **kwargs):
+    def read_excel(*args, **kwargs) -> 'LinkedDataFrame':
         return LinkedDataFrame(pd.read_excel(*args, **kwargs))
 
     @staticmethod
-    def read_fwf(*args, **kwargs):
+    def read_fwf(*args, **kwargs) -> 'LinkedDataFrame':
         return LinkedDataFrame(pd.read_fwf(*args, **kwargs))
 
     @staticmethod
-    def read_(name, *args, **kwargs):
+    def read_(name, *args, **kwargs) -> 'LinkedDataFrame':
         func = getattr(pd, f"read_{name}")
         return LinkedDataFrame(func(*args, **kwargs))
 
@@ -504,16 +504,21 @@ class LinkedDataFrame(DataFrame):
                     raise RuntimeError(f"Results of evaluation '{expr}' is non-numeric type {series_type}, which is not"
                                        f" allowed for aggregation function '{self._func_name}'")
 
-                grouped = evaluation.groupby(grouper)
-                array = getattr(grouped, self._func_name)(**kwargs).values
-
                 # A fill value of NaN is only disallowed for integer types
                 fill_value = np.nan
                 if series_type == PandasDtype.INT_NAME:
                     fill_value = int_fill
                 elif series_type == PandasDtype.TIME_NAME:
                     raise NotImplementedError("Haven't found a way to instantiate NaT filler")
-                return self._owner._resolve_history(array, fill_value)
+
+                grouped = evaluation.groupby(grouper)
+                series = getattr(grouped, self._func_name)(**kwargs)
+
+                if not series.index.equals(grouper):
+                    # In some cases (like nth), the returned array is missing some values
+                    series = series.reindex(grouper, fill_value=fill_value)
+
+                return self._owner._resolve_history(series.values, fill_value)
 
     # endregion
 
@@ -598,36 +603,6 @@ class LinkedDataFrame(DataFrame):
 
     # endregion
 
-    def link_summary(self) -> DataFrame:
-        summary_table = {'name': [], 'target_shape': [], 'on_self': [], 'on_other': [], 'chained': [],
-                         'aggregation': [], 'preindexed': []}
-        for name, entry in self.__links.items():
-            summary_table['name'].append(name)
-            summary_table['target_shape'].append(str(entry.other.shape))
-            summary_table['on_self'].append(str(entry.self_meta))
-            summary_table['on_other'].append(str(entry.other_meta))
-            summary_table['chained'].append(entry.chained)
-            summary_table['aggregation'].append(entry.aggregation_required)
-            summary_table['preindexed'].append(entry.flat_indexer is not None)
-
-        df = DataFrame(summary_table)
-        df.set_index('name', inplace=True)
-        return df
-
-    def compute_indexers(self, refresh: bool=True):
-        """
-        For all outoing links, compute any missing indexers (precompute=False when calling link_to()), or refresh
-        already-computed indexers.
-
-        Args:
-            refresh: If False, indexers will only be computed for links without them. Otherwise, this forces indexers
-                to be re-computed.
-        """
-
-        for entry in self.__links.values():
-            if refresh or entry.flat_indexer is None:
-                entry.precompute()
-
     # region Expression evaluation
 
     def eval(self, expr, *args, **kwargs):
@@ -645,7 +620,7 @@ class LinkedDataFrame(DataFrame):
         new_expr = Expression.parse(expr, mode=EvaluationMode.DATAFRAME)
 
         ld = {} if 'local_dict' not in kwargs else kwargs['local_dict'].copy()
-        for column in self:
+        for column in new_expr.symbols:
             try:
                 ld[column] = convert_series(self[column], allow_raw=False)
             except TypeError:
@@ -670,6 +645,52 @@ class LinkedDataFrame(DataFrame):
         return Series(vector, index=self.index)
 
     # endregion
+
+    # region Other methods
+
+    def link_summary(self) -> DataFrame:
+        """
+        Produces a table summarizing all outgoing links from this frame.
+
+        Returns:
+            DataFrame: Has the following columns:
+                - name: The assigned name of the link
+                - target_shape: The shape of the "other" frame
+                - on_self: String indicating which columns or levels in THIS frame used for the join
+                - on_other: String indicating which columns or levels in the OTHER frame used for the join
+                - chained: Flag indicating if the target frame also supports links
+                - aggregation: Flag indicating if the relationship must be aggregated
+                - preindexed: Flag indicating if the relationship has already been indexed.
+
+        """
+        summary_table = {'name': [], 'target_shape': [], 'on_self': [], 'on_other': [], 'chained': [],
+                         'aggregation': [], 'preindexed': []}
+        for name, entry in self.__links.items():
+            summary_table['name'].append(name)
+            summary_table['target_shape'].append(str(entry.other.shape))
+            summary_table['on_self'].append(str(entry.self_meta))
+            summary_table['on_other'].append(str(entry.other_meta))
+            summary_table['chained'].append(entry.chained)
+            summary_table['aggregation'].append(entry.aggregation_required)
+            summary_table['preindexed'].append(entry.flat_indexer is not None)
+
+        df = DataFrame(summary_table)
+        df.set_index('name', inplace=True)
+        return df
+
+    def compute_indexers(self, refresh: bool = True):
+        """
+        For all outoing links, compute any missing indexers (precompute=False when calling link_to()), or refresh
+        already-computed indexers.
+
+        Args:
+            refresh: If False, indexers will only be computed for links without them. Otherwise, this forces indexers
+                to be re-computed.
+        """
+
+        for entry in self.__links.values():
+            if refresh or entry.flat_indexer is None:
+                entry.precompute()
 
     def pivot_table(self, values=None, index=None, columns=None,
                     aggfunc='mean', fill_value=None, margins=False,
@@ -729,3 +750,24 @@ class LinkedDataFrame(DataFrame):
                 new_columns.append(new_column_name)
                 flags.append(True)
         return new_columns, flags
+
+    def get_link_target(self, name) -> Union[DataFrame, 'LinkedDataFrame']:
+        """
+        Gets the referenced target ("other") of an outbound link. This is useful when the original
+        reference to the targeted frame is no longer available, or to to modify the fill management of that
+        target.
+
+        Args:
+            name: The name of the link alias.
+
+        Returns:
+            DataFrame: The targeted "other" frame of the link, if the link is not chained.
+            LinkedDataFrame: The targeted "other" frame of the link, if the link IS chained
+
+        Raises:
+            KeyError: When the specified name is not a link.
+
+        """
+        return self.__links[name].other
+
+    # endregion
