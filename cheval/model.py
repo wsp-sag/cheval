@@ -19,6 +19,8 @@ from .core import (worker_nested_probabilities, worker_nested_sample, worker_mul
 
 
 OUT_STR = "__OUT"
+NEG_INF_STR = "NEG_INF"
+NEG_INF = -np.inf
 
 
 class ChoiceModel(object):
@@ -29,6 +31,7 @@ class ChoiceModel(object):
         self._expressions: ExpressionGroup = ExpressionGroup()
         self._scope: Dict[str, AbstractSymbol] = {}
         self._decision_units: Index = None
+        self._cached_cols: Index = None
 
     # region Tree operations
 
@@ -48,6 +51,8 @@ class ChoiceModel(object):
             ChoiceNode: The added choice node, which also has an "add_choice" method for constructing nested models.
 
         """
+        if self._cached_cols is not None: self._cached_cols = None
+
         node = ChoiceNode(name, logsum_scale=logsum_scale, level=1)
         self._top_children[name] = node
         return node
@@ -66,6 +71,8 @@ class ChoiceModel(object):
             dict: Mapping of name: ChoiceNode for the added nodes
 
         """
+        if self._cached_cols is not None: self._cached_cols = None
+
         if logsum_scales is None:
             logsum_scales = [1.0 for _ in names]
         retval = {}
@@ -281,6 +288,16 @@ class ChoiceModel(object):
         result = self._convert_result(raw_result, astype, squeeze, result_name)
         return result, logsum
 
+    def _make_column_mask(self, filter_: str) -> Union[int, None]:
+        if filter_ is None: return None
+        col_index = self.choices
+
+        column_depth = col_index.nlevels
+        filter_parts = filter_.split('.')
+        assert len(filter_parts) <= column_depth
+        index_item = tuple(filter_parts + ['.'] * (column_depth - len(filter_parts)))
+        return col_index.get_loc(index_item)  # Get the column number for the selected choice
+
     def _evaluate_utilities(self, precision=8, n_threads: int=None, logger: Logger=None) -> DataFrame:
         if self._decision_units is None:
             raise ModelNotReadyError("Decision units must be set before evaluating utility expressions")
@@ -308,6 +325,8 @@ class ChoiceModel(object):
             # TODO: Add error handling
             # TODO: Add support for watching particular rows and logging the results
 
+            choice_mask = self._make_column_mask(expr.filter_)
+
             local_dict = shared_locals.copy()  # Make a shallow copy of the shared symbols
 
             # Add in any dict literals, expanding them to cover all choices
@@ -321,13 +340,19 @@ class ChoiceModel(object):
                     data = symbol._get(chain_info=chain_info)
                     local_dict[substitution] = data
 
-            self._kernel_eval(expr.transformed, local_dict, utilities)
+            self._kernel_eval(expr.transformed, local_dict, utilities, choice_mask)
 
         return DataFrame(utilities, index=row_index, columns=col_index)
 
     @staticmethod
-    def _kernel_eval(transformed_expr: str, local_dict: Dict[str, np.ndarray], out: np.ndarray):
-        expr_to_run = f"{OUT_STR} + {transformed_expr}"
+    def _kernel_eval(transformed_expr: str, local_dict: Dict[str, np.ndarray], out: np.ndarray, column_index):
+        if column_index is not None:
+            for key, val in local_dict.items():
+                if hasattr(val, 'shape') and val.shape[1] > 1:
+                    local_dict[key] = val[:, column_index]
+            out = out[:, column_index]
+
+        expr_to_run = f"{OUT_STR} + ({transformed_expr})"
         ne.evaluate(expr_to_run, local_dict=local_dict, out=out)
 
     def _convert_result(self, raw_result: ndarray, astype, squeeze: bool, result_name: str) -> Union[Series, DataFrame]:
