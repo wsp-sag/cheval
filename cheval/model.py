@@ -1,4 +1,4 @@
-from typing import Iterable, List, Dict, Union, Tuple, Iterator, Set
+from typing import Iterable, List, Dict, Union, Tuple, Iterator, Set, Hashable
 from collections import deque
 from itertools import chain as iter_chain
 from multiprocessing import cpu_count
@@ -32,6 +32,7 @@ class ChoiceModel(object):
         self._scope: Dict[str, AbstractSymbol] = {}
         self._decision_units: Index = None
         self._cached_cols: Index = None
+        self._cached_utils: DataFrame = None
 
     # region Tree operations
 
@@ -427,5 +428,13 @@ class ChoiceModel(object):
         logsum = Series(logsum, index=self.decision_units)
 
         return result_frame, logsum
+
+    # endregion
+
+    # region Advanced functions
+
+    def preval(self, group: Hashable, precision: int = 8, n_threads: int = None, logger: Logger = None,
+               drop_group=True) -> 'ChoiceModel':
+        pass
 
     # endregion
