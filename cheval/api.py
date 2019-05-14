@@ -1,13 +1,10 @@
-from typing import Dict, Union, Set, TYPE_CHECKING, List, Tuple, Generator, Hashable
+from typing import Dict, Union, Set, TYPE_CHECKING, List, Generator, Hashable
 import abc
-import ast
-import astor
 
 import pandas as pd
 import numpy as np
-import attr
 
-from .parsing.expr_items import ChainTuple, ChainedSymbol
+from .parsing.expr_items import ChainTuple
 from .parsing.expressions import Expression
 from .ldf import LinkedDataFrame
 from .exceptions import ModelNotReadyError
