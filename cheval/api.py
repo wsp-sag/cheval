@@ -1,4 +1,4 @@
-from typing import Dict, Union, Set, TYPE_CHECKING, List, Tuple, Generator
+from typing import Dict, Union, Set, TYPE_CHECKING, List, Tuple, Generator, Hashable
 import abc
 import ast
 import astor
@@ -102,18 +102,29 @@ class ChoiceNode(object):
 class ExpressionGroup(object):
 
     def __init__(self):
-        self._expressions: List[Expression] = []
+        self._ungrouped_expressions: List[Expression] = []
         self._simple_symbols: Set[str] = set()
         self._chained_symbols: Set[str] = set()
+        self._subgroups: Dict[Hashable, List[Expression]] = {}
 
-    def append(self, e: str):
+    def append(self, e: str, group: Hashable = None):
         # Parse the expression and look for invalid syntax and inconsistent usage. self._simple_sybols and
         # self._chained_symbols are modified in-place during parsing.
         expr = Expression.parse(e, self._simple_symbols, self._chained_symbols)
-        self._expressions.append(expr)
+        if group is not None:
+            if group not in self._subgroups:
+                subgroup = []
+                self._subgroups[group] = subgroup
+            else:
+                subgroup = self._subgroups[group]
+
+            subgroup.append(expr)
+        else:
+            self._ungrouped_expressions.append(expr)
 
     def clear(self):
-        self._expressions.clear()
+        self._ungrouped_expressions.clear()
+        self._subgroups.clear()
         self._simple_symbols.clear()
         self._chained_symbols.clear()
 
@@ -124,20 +135,20 @@ class ExpressionGroup(object):
         yield from self._chained_symbols
 
     def __iter__(self) -> Generator[Expression, None, None]:
-        yield from self._expressions
+        yield from self._ungrouped_expressions
 
     def __add__(self, other: 'ExpressionGroup') -> 'ExpressionGroup':
         new = ExpressionGroup()
 
         new._simple_symbols = self._simple_symbols | other._simple_symbols
         new._chained_symbols = self._chained_symbols | other._chained_symbols
-        new._expressions = self._expressions + other._expressions
+        new._ungrouped_expressions = self._ungrouped_expressions + other._ungrouped_expressions
 
         return new
 
     def tolist(self, raw=True):
-        if raw: return [e.raw for e in self._expressions]
-        return [e for e in self._expressions]
+        if raw: return [e.raw for e in self._ungrouped_expressions]
+        return [e for e in self._ungrouped_expressions]
 
 
 class AbstractSymbol(object, metaclass=abc.ABCMeta):
