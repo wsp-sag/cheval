@@ -141,6 +141,17 @@ class ExpressionGroup(object):
         new._chained_symbols = self._chained_symbols | other._chained_symbols
         new._ungrouped_expressions = self._ungrouped_expressions + other._ungrouped_expressions
 
+        new._subgroups = {}
+        keys = set(self._subgroups.keys()) | set(other._subgroups.keys())
+        for key in keys:
+            key_in_self, key_in_other = key in self._subgroups, key in other._subgroups
+            if key_in_self and key_in_other:
+                new._subgroups[key] = self._subgroups[key] + other._subgroups[key]
+            elif key_in_self:
+                new._subgroups[key] = self._subgroups[key]
+            elif key_in_other:
+                new._subgroups[key] = other._subgroups[key]
+
         return new
 
     def tolist(self, raw=True):
