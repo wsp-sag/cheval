@@ -131,10 +131,10 @@ class ExpressionSubGroup:
         return new
 
     def itersimple(self):
-        yield from self._simple_symbols
+        yield from self.simple_symbols
 
     def iterchained(self):
-        yield from self._chained_symbols
+        yield from self.chained_symbols
 
     def __iter__(self):
         yield from self.expressions
