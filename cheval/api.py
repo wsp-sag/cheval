@@ -3,6 +3,7 @@ import abc
 
 import pandas as pd
 import numpy as np
+import attr
 
 from .parsing.expr_items import ChainTuple
 from .parsing.expressions import Expression
@@ -96,21 +97,34 @@ class ChoiceNode(object):
         self._children.clear()
 
 
+@attr.s
+class _ExpressionSubGroup:
+    name: Hashable = attr.ib()
+    simple_symbols: Set[str] = attr.ib(default=attr.Factory(set))
+    chained_symbols: Set[str] = attr.ib(default=attr.Factory(set))
+    expressions: List[Expression] = attr.ib(default=attr.Factory(list))
+
+    def append(self, e: Expression):
+        self.expressions.append(e)
+        self.simple_symbols |= e.symbols
+        for chain_name in e.chains.keys(): self.chained_symbols.add(chain_name)
+
+
 class ExpressionGroup(object):
 
     def __init__(self):
         self._ungrouped_expressions: List[Expression] = []
         self._simple_symbols: Set[str] = set()
         self._chained_symbols: Set[str] = set()
-        self._subgroups: Dict[Hashable, List[Expression]] = {}
+        self._subgroups: Dict[Hashable, _ExpressionSubGroup] = {}
 
     def append(self, e: str, group: Hashable = None):
-        # Parse the expression and look for invalid syntax and inconsistent usage. self._simple_sybols and
+        # Parse the expression and look for invalid syntax and inconsistent usage. self._simple_symbols and
         # self._chained_symbols are modified in-place during parsing.
         expr = Expression.parse(e, self._simple_symbols, self._chained_symbols)
         if group is not None:
             if group not in self._subgroups:
-                subgroup = []
+                subgroup = _ExpressionSubGroup(group)
                 self._subgroups[group] = subgroup
             else:
                 subgroup = self._subgroups[group]
