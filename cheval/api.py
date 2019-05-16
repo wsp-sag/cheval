@@ -243,6 +243,10 @@ class AbstractSymbol(object, metaclass=abc.ABCMeta):
     @abc.abstractmethod
     def copy(self, new_parent: 'ChoiceModel', copy_data) -> 'AbstractSymbol': pass
 
+    @property
+    @abc.abstractmethod
+    def filled(self) -> bool: pass
+
 
 class NumberSymbol(AbstractSymbol):
     def __init__(self, parent: 'ChoiceModel', name: str):
@@ -265,6 +269,9 @@ class NumberSymbol(AbstractSymbol):
             new._val = self._val
 
         return new
+
+    @property
+    def filled(self): return self._val is not None
 
 
 class VectorSymbol(AbstractSymbol):
@@ -308,6 +315,9 @@ class VectorSymbol(AbstractSymbol):
             new._raw_array = self._raw_array
 
         return new
+
+    @property
+    def filled(self): return self._raw_array is not None
 
 
 class TableSymbol(AbstractSymbol):
@@ -370,6 +380,9 @@ class TableSymbol(AbstractSymbol):
         if copy_data: new._table = self._table
         return new
 
+    @property
+    def filled(self): return self._table is not None
+
 
 class MatrixSymbol(AbstractSymbol):
 
@@ -416,5 +429,8 @@ class MatrixSymbol(AbstractSymbol):
         if copy_data:
             new._matrix = self._matrix
         return new
+
+    @property
+    def filled(self): return self._matrix is not None
 
 # endregion
