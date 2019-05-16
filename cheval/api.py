@@ -169,18 +169,21 @@ class ExpressionGroup(object):
         self._simple_symbols.clear()
         self._chained_symbols.clear()
 
-    def itersimple(self):
+    def itersimple(self, *, groups=True):
         yield from self._simple_symbols
+        if not groups: return
         for subgroup in self._subgroups.values():
             yield from subgroup.itersimple()
 
-    def iterchained(self):
+    def iterchained(self, *, groups=True):
         yield from self._chained_symbols
+        if not groups: return
         for subgroup in self._subgroups.values():
             yield from subgroup.iterchained()
 
-    def __iter__(self) -> Generator[Expression, None, None]:
+    def __iter__(self, *, groups=True) -> Generator[Expression, None, None]:
         yield from self._ungrouped_expressions
+        if not groups: return
         for subgroup in self._subgroups.values():
             yield from subgroup
 
