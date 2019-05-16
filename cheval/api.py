@@ -98,7 +98,7 @@ class ChoiceNode(object):
 
 
 @attr.s
-class _ExpressionSubGroup:
+class ExpressionSubGroup:
     name: Hashable = attr.ib()
     simple_symbols: Set[str] = attr.ib(default=attr.Factory(set))
     chained_symbols: Set[str] = attr.ib(default=attr.Factory(set))
@@ -109,11 +109,20 @@ class _ExpressionSubGroup:
         self.simple_symbols |= e.symbols
         for chain_name in e.chains.keys(): self.chained_symbols.add(chain_name)
 
-    def __add__(self, other: '_ExpressionSubGroup') -> '_ExpressionSubGroup':
-        new = _ExpressionSubGroup(self.name)
+    def __add__(self, other: 'ExpressionSubGroup') -> 'ExpressionSubGroup':
+        new = ExpressionSubGroup(self.name)
         for e in self.expressions: new.append(e)
         for e in other.expressions: new.append(e)
         return new
+
+    def itersimple(self):
+        yield from self._simple_symbols
+
+    def iterchained(self):
+        yield from self._chained_symbols
+
+    def __iter__(self):
+        yield from self.expressions
 
 
 class ExpressionGroup(object):
@@ -122,7 +131,7 @@ class ExpressionGroup(object):
         self._ungrouped_expressions: List[Expression] = []
         self._simple_symbols: Set[str] = set()
         self._chained_symbols: Set[str] = set()
-        self._subgroups: Dict[Hashable, _ExpressionSubGroup] = {}
+        self._subgroups: Dict[Hashable, ExpressionSubGroup] = {}
 
     def append(self, e: str, group: Hashable = None):
         # Parse the expression and look for invalid syntax and inconsistent usage. self._simple_symbols and
@@ -130,7 +139,7 @@ class ExpressionGroup(object):
         expr = Expression.parse(e, self._simple_symbols, self._chained_symbols)
         if group is not None:
             if group not in self._subgroups:
-                subgroup = _ExpressionSubGroup(group)
+                subgroup = ExpressionSubGroup(group)
                 self._subgroups[group] = subgroup
             else:
                 subgroup = self._subgroups[group]
@@ -147,12 +156,18 @@ class ExpressionGroup(object):
 
     def itersimple(self):
         yield from self._simple_symbols
+        for subgroup in self._subgroups.values():
+            yield from subgroup.itersimple()
 
     def iterchained(self):
         yield from self._chained_symbols
+        for subgroup in self._subgroups.values():
+            yield from subgroup.iterchained()
 
     def __iter__(self) -> Generator[Expression, None, None]:
         yield from self._ungrouped_expressions
+        for subgroup in self._subgroups.values():
+            yield from subgroup
 
     def __add__(self, other: 'ExpressionGroup') -> 'ExpressionGroup':
         new = ExpressionGroup()
@@ -177,6 +192,20 @@ class ExpressionGroup(object):
     def tolist(self, raw=True):
         if raw: return [e.raw for e in self._ungrouped_expressions]
         return [e for e in self._ungrouped_expressions]
+
+    def get_group(self, name: Hashable) -> ExpressionSubGroup:
+        return self._subgroups[name]
+
+    def drop_group(self, name: Hashable):
+        del self._subgroups[name]
+
+    def copy(self):
+        new = ExpressionGroup()
+        for e in self._ungrouped_expressions: new._ungrouped_expressions.append(e)
+        for name, subgroup in self._subgroups.items():
+            new_sg = ExpressionSubGroup(name)
+            for e in subgroup: new_sg.append(e)
+            new._subgroups[name] = new_sg
 
 
 class AbstractSymbol(object, metaclass=abc.ABCMeta):

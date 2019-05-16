@@ -11,7 +11,7 @@ import numpy as np
 import numexpr as ne
 import numba as nb
 
-from .api import AbstractSymbol, ExpressionGroup, ChoiceNode, NumberSymbol, VectorSymbol, TableSymbol, MatrixSymbol
+from .api import AbstractSymbol, ExpressionGroup, ChoiceNode, NumberSymbol, VectorSymbol, TableSymbol, MatrixSymbol, ExpressionSubGroup
 from .exceptions import ModelNotReadyError
 from .parsing import NAN_STR as NAN_STR
 from .core import (worker_nested_probabilities, worker_nested_sample, worker_multinomial_probabilities,
@@ -275,7 +275,8 @@ class ChoiceModel(object):
         assert n_draws >= 1
 
         # Utility computations
-        utility_table = self._evaluate_utilities(precision=precision, n_threads=n_threads, logger=logger).values
+        utility_table = self._evaluate_utilities(self._expressions, precision=precision, n_threads=n_threads,
+                                                 logger=logger).values
         if clear_scope: self.clear_scope()
 
         # Compute probabilities and sample
@@ -303,7 +304,8 @@ class ChoiceModel(object):
         index_item = tuple(filter_parts + ['.'] * (column_depth - len(filter_parts)))
         return col_index.get_loc(index_item)  # Get the column number for the selected choice
 
-    def _evaluate_utilities(self, precision=8, n_threads: int=None, logger: Logger=None) -> DataFrame:
+    def _evaluate_utilities(self, expressions: Union[ExpressionGroup, ExpressionSubGroup], precision=8,
+                            n_threads: int=None, logger: Logger=None) -> DataFrame:
         if self._decision_units is None:
             raise ModelNotReadyError("Decision units must be set before evaluating utility expressions")
         if n_threads is None:
@@ -319,13 +321,13 @@ class ChoiceModel(object):
         if logger is not None: logger.debug("Building shared locals")
         # Prepare locals, including scalar, vector, and matrix variables that don't need any further processing.
         shared_locals = {NAN_STR: np.nan, OUT_STR: utilities}
-        for name in self._expressions.itersimple():
+        for name in expressions.itersimple():
             symbol = self._scope[name]
             shared_locals[name] = symbol._get()
 
         ne.set_num_threads(n_threads)
 
-        for expr in self._expressions:
+        for expr in expressions:
             if logger is not None: logger.debug(f"Evaluating expression '{expr.raw}'")
             # TODO: Add error handling
             # TODO: Add support for watching particular rows and logging the results
@@ -412,7 +414,8 @@ class ChoiceModel(object):
         self.validate_scope()
 
         # Utility computations
-        utility_table = self._evaluate_utilities(precision=precision, n_threads=n_threads, logger=logger).values
+        utility_table = self._evaluate_utilities(self._expressions, precision=precision, n_threads=n_threads,
+                                                 logger=logger).values
         if clear_scope: self.clear_scope()
 
         # Compute probabilities
@@ -434,7 +437,17 @@ class ChoiceModel(object):
     # region Advanced functions
 
     def preval(self, group: Hashable, precision: int = 8, n_threads: int = None, logger: Logger = None,
-               drop_group=True) -> 'ChoiceModel':
-        pass
+               drop_group=True, cleanup_scope=True):
+        subgroup = self._expressions.get_group(group)
+
+        # TODO: Validate that the DU are set
+        # TODO: Validate symbols and scope
+
+        utilities = self._evaluate_utilities(subgroup, precision=precision, n_threads=n_threads, logger=logger)
+        if self._cached_utils is None:
+            self._cached_utils = utilities
+        else: self._cached_utils += utilities
+
+        if drop_group: self._expressions.drop_group(group)
 
     # endregion
