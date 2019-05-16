@@ -109,6 +109,12 @@ class _ExpressionSubGroup:
         self.simple_symbols |= e.symbols
         for chain_name in e.chains.keys(): self.chained_symbols.add(chain_name)
 
+    def __add__(self, other: '_ExpressionSubGroup') -> '_ExpressionSubGroup':
+        new = _ExpressionSubGroup(self.name)
+        for e in self.expressions: new.append(e)
+        for e in other.expressions: new.append(e)
+        return new
+
 
 class ExpressionGroup(object):
 
