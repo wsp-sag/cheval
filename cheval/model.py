@@ -450,4 +450,31 @@ class ChoiceModel(object):
 
         if drop_group: self._expressions.drop_group(group)
 
+    def copy(self, *, decision_units=True, scope_declared=True, scope_assigned=True, expressions=True, utilities=True
+             ) -> 'ChoiceModel':
+
+        new = ChoiceModel()
+        new._max_level = self._max_level
+        new._top_children = self._top_children.copy()  # ChoiceNode refs will be the same, but that's ok because users
+        # shouldn't be changing these at this point
+        new._cached_cols = self._cached_cols
+
+        if scope_declared or scope_assigned:
+            for name, symbol in self._scope.items():
+                new._scope[name] = symbol.copy(new, copy_data=scope_assigned)
+
+        if self._decision_units is not None and decision_units:
+            new.decision_units = self.decision_units
+
+        if expressions:
+            # A new ExpressionGroup instance is important to allow copies to drop expressions and groups
+            new._expressions = self._expressions.copy()
+
+        if self._cached_utils is not None and utilities:
+            # Make a deep copy of the partial utilities to avoid updating this instance's partial utils later when
+            # using +=
+            new._cached_utils = self._cached_utils.copy(deep=True)
+
+        return new
+
     # endregion
