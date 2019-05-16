@@ -14,6 +14,8 @@ from .misc import convert_series
 if TYPE_CHECKING:
     from .model import ChoiceModel
 
+# region Tree
+
 
 class ChoiceNode(object):
 
@@ -105,6 +107,9 @@ class ChoiceNode(object):
     def clear(self):
         for c in self._children.values(): c.clear()
         self._children.clear()
+
+# endregion
+# region Expression containers
 
 
 @attr.s
@@ -216,6 +221,9 @@ class ExpressionGroup(object):
             new_sg = ExpressionSubGroup(name)
             for e in subgroup: new_sg.append(e)
             new._subgroups[name] = new_sg
+
+# endregion
+# region Symbols for scope
 
 
 class AbstractSymbol(object, metaclass=abc.ABCMeta):
@@ -408,3 +416,5 @@ class MatrixSymbol(AbstractSymbol):
         if copy_data:
             new._matrix = self._matrix
         return new
+
+# endregion
