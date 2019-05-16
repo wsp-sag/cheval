@@ -209,7 +209,6 @@ class ExpressionGroup(object):
 
 
 class AbstractSymbol(object, metaclass=abc.ABCMeta):
-
     def __init__(self, parent: 'ChoiceModel', name: str):
         self._parent = parent
         self._name = name
@@ -222,6 +221,9 @@ class AbstractSymbol(object, metaclass=abc.ABCMeta):
 
     @abc.abstractmethod
     def empty(self): pass
+
+    @abc.abstractmethod
+    def copy(self, new_parent: 'ChoiceModel', copy_data) -> 'AbstractSymbol': pass
 
 
 class NumberSymbol(AbstractSymbol):
@@ -238,6 +240,13 @@ class NumberSymbol(AbstractSymbol):
         return self._val
 
     def empty(self): self._val = None
+
+    def copy(self, new_parent: 'ChoiceModel', copy_data):
+        new = NumberSymbol(new_parent, self._name)
+        if copy_data:
+            new._val = self._val
+
+        return new
 
 
 class VectorSymbol(AbstractSymbol):
@@ -274,6 +283,13 @@ class VectorSymbol(AbstractSymbol):
         return self._raw_array
 
     def empty(self): self._raw_array = None
+
+    def copy(self, new_parent: 'ChoiceModel', copy_data):
+        new = VectorSymbol(new_parent, self._name, self._orientation)
+        if copy_data:
+            new._raw_array = self._raw_array
+
+        return new
 
 
 class TableSymbol(AbstractSymbol):
@@ -331,6 +347,11 @@ class TableSymbol(AbstractSymbol):
     def empty(self):
         self._table = None
 
+    def copy(self, new_parent: 'ChoiceModel', copy_data):
+        new = TableSymbol(new_parent, self._name, self._orientation, self._mandatory_attributes, self._allow_links)
+        if copy_data: new._table = self._table
+        return new
+
 
 class MatrixSymbol(AbstractSymbol):
 
@@ -372,3 +393,8 @@ class MatrixSymbol(AbstractSymbol):
 
     def empty(self): self._matrix = None
 
+    def copy(self, new_parent: 'ChoiceModel', copy_data):
+        new = MatrixSymbol(new_parent, self._name, self._allow_transpose)
+        if copy_data:
+            new._matrix = self._matrix
+        return new
