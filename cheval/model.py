@@ -86,7 +86,7 @@ class ChoiceModel(object):
     @property
     def choices(self) -> Index:
         """Pandas Index representing the choices in the model"""
-        self.validate_tree()
+        self.validate(decision_units=False, expressions=False, assignment=False)
         max_level = self.depth
 
         if max_level == 1:
@@ -220,22 +220,6 @@ class ChoiceModel(object):
     # endregion
     # region Run methods
 
-    def validate_tree(self):
-        if len(self._top_children) <= 1:
-            raise ModelNotReadyError("At least two or more choices must be defined")
-
-        for c in self._all_children():
-            n_children = c.n_children
-            if n_children == 1:
-                raise ModelNotReadyError("In a nested model, all sub-choices must have 0, or 2 or more children")
-
-    def validate_scope(self):
-        for symbol_name in iter_chain(self._expressions.itersimple(), self._expressions.iterchained()):
-            if symbol_name not in self._scope:
-                raise KeyError(f"Symbol {symbol_name} not declared")
-
-        # TODO: Check that symbols are also assigned
-
     def validate(self, *, tree=True, decision_units=True, expressions=True, assignment=True, group=None):
         """
         Checks that the model components are self-consistent and that the model is ready to run.
@@ -307,8 +291,7 @@ class ChoiceModel(object):
                 for each decision unit. This is always a Series, as its value doesn't change with the number of draws.
 
         """
-        self.validate_tree()
-        self.validate_scope()
+        self.validate()
         if random_seed is None:
             random_seed = np.random.randint(1, 1000)
 
@@ -450,8 +433,7 @@ class ChoiceModel(object):
                 equal to the max depth of nesting. The second item is the top-level logsum term from the logit model,
                 for each decision unit.
         """
-        self.validate_tree()
-        self.validate_scope()
+        self.validate()
 
         # Utility computations
         utility_table = self._evaluate_utilities(self._expressions, precision=precision, n_threads=n_threads,
@@ -478,11 +460,8 @@ class ChoiceModel(object):
 
     def preval(self, group: Hashable, precision: int = 8, n_threads: int = None, logger: Logger = None,
                drop_group=True, cleanup_scope=True):
+        self.validate(group=group)
         subgroup = self._expressions.get_group(group)
-
-        # TODO: Validate that the DU are set
-        # TODO: Validate symbols and scope
-
         utilities = self._evaluate_utilities(subgroup, precision=precision, n_threads=n_threads, logger=logger)
         if self._cached_utils is None:
             self._cached_utils = utilities
