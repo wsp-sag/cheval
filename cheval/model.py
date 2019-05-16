@@ -467,6 +467,19 @@ class ChoiceModel(object):
             self._cached_utils = utilities
         else: self._cached_utils += utilities
 
+        if cleanup_scope:
+            # Need to get a set of only those symbols unique to this group, using set math
+            all_symbols = set(iter_chain(self.expressions.itersimple(), self.expressions.itersimple()))
+            ungrouped_symbols = set(
+                iter_chain(self._expressions.iterchained(groups=False), self._expressions.itersimple(groups=False)))
+            group_symbols = set(iter_chain(subgroup.iterchained(), subgroup.itersimple()))
+            other_symbols = all_symbols - ungrouped_symbols - group_symbols
+
+            symbols_to_clear = group_symbols - ungrouped_symbols - other_symbols
+
+            for name in symbols_to_clear:
+                del self._scope[name]
+
         if drop_group: self._expressions.drop_group(group)
 
     def copy(self, *, decision_units=True, scope_declared=True, scope_assigned=True, expressions=True, utilities=True
