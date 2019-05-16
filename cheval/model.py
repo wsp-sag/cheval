@@ -53,6 +53,7 @@ class ChoiceModel(object):
 
         """
         if self._cached_cols is not None: self._cached_cols = None
+        if self._cached_utils is not None: self._cached_utils = None
 
         node = ChoiceNode(name, logsum_scale=logsum_scale, level=1)
         self._top_children[name] = node
@@ -73,6 +74,7 @@ class ChoiceModel(object):
 
         """
         if self._cached_cols is not None: self._cached_cols = None
+        if self._cached_utils is not None: self._cached_utils = None
 
         if logsum_scales is None:
             logsum_scales = [1.0 for _ in names]
