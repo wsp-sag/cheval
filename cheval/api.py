@@ -1,5 +1,6 @@
 from typing import Dict, Union, Set, TYPE_CHECKING, List, Generator, Hashable
 import abc
+from collections import deque
 
 import pandas as pd
 import numpy as np
@@ -59,6 +60,15 @@ class ChoiceNode(object):
     @property
     def n_children(self) -> int:
         return len(self._children)
+
+    @property
+    def full_name(self) -> str:
+        ids = deque()
+        node = self
+        while node is not None:
+            ids.appendleft(node.name)
+            node = node.parent
+        return '.'.join(ids)
 
     def children(self):
         yield from self._children.values()
