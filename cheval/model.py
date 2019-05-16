@@ -460,6 +460,27 @@ class ChoiceModel(object):
 
     def preval(self, group: Hashable, precision: int = 8, n_threads: int = None, logger: Logger = None,
                drop_group=True, cleanup_scope=True):
+        """
+        When using expression groups, "pre-evaluate" the utility expressions for a specified group, caching the utility
+        table on the ChoiceModel.
+
+        This is an advanced modelling technique to facilitate complex segmented stochastic models, where segments share
+        decision units and some common utility expressions. Call preval() for the group of common expressions, and then
+        copy() the ChoiceModel to fill other symbols with segment-specific values.
+
+        Discrete (micorsimulated) models don't need this because the decision units of each segment don't overlap. So
+        there's no downside to double-computing common expressions
+
+        Args:
+            group: The name of the group to pre-compute.
+            precision: Number of bytes to use to store utility values.
+            n_threads: Number of threads to use to evaluate the expressions
+            logger: Optional logger for debugging
+            drop_group: If True, the selected group will be "popped" from the set of groups, to avoid re-computing.
+            cleanup_scope: If True, symbols unique to this group will be dropped from the scope. This can clean up
+                memory by de-referencing objects and arrays that are no longer required.
+
+        """
         self.validate(group=group)
         subgroup = self._expressions.get_group(group)
         utilities = self._evaluate_utilities(subgroup, precision=precision, n_threads=n_threads, logger=logger)
@@ -484,6 +505,19 @@ class ChoiceModel(object):
 
     def copy(self, *, decision_units=True, scope_declared=True, scope_assigned=True, expressions=True, utilities=True
              ) -> 'ChoiceModel':
+        """
+        Makes a shallow or deep copy of this ChoiceModel. The tree of choices is always copied
+
+        Args:
+            decision_units: Copy over the decision units, if already set.
+            scope_declared: Copy over all declared symbols, but not their assigned values
+            scope_assigned: Copy over all declared and their assigned values
+            expressions: Copy over all expressions
+            utilities: Copy over the cached utility table from preval(), if it exists.
+
+        Returns: A copy of this ChoiceModel
+
+        """
 
         new = ChoiceModel()
         new._max_level = self._max_level
