@@ -345,7 +345,7 @@ class ChoiceModel(object):
 
         if logger is not None: logger.debug("Building shared locals")
         # Prepare locals, including scalar, vector, and matrix variables that don't need any further processing.
-        shared_locals = {NAN_STR: np.nan, OUT_STR: utilities}
+        shared_locals = {NAN_STR: np.nan, OUT_STR: utilities, NEG_INF_STR: NEG_INF}
         for name in expressions.itersimple():
             symbol = self._scope[name]
             shared_locals[name] = symbol._get()
