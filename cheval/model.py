@@ -236,6 +236,46 @@ class ChoiceModel(object):
 
         # TODO: Check that symbols are also assigned
 
+    def validate(self, *, tree=True, decision_units=True, expressions=True, assignment=True, group=None):
+        """
+        Checks that the model components are self-consistent and that the model is ready to run.
+
+        Optionally, some components can be skipped, in order to partially validate a model under construction.
+
+        Args:
+            tree: Checks that all nested nodes have two or more children.
+            decision_units: Checks that the decision units have been assigned.
+            expressions: Checks that expressions use declared symbols.
+            assignment: Checks that used and declared symbols have been assigned
+            group: If not ``None``,  checks the expressions for only the specified group. This also applies to the
+                assignment check. Otherwise, all expressions and symbols will be checked.
+
+        Raises:
+            ModelNotReadyError: if any check fails.
+
+        """
+
+        def assert_valid(condition, message):
+            if condition: raise ModelNotReadyError(message)
+
+        if tree:
+            assert_valid(len(self._top_children) >= 2, "At least two or more choices must be defined")
+            for c in self._all_children():
+                n_children = c.n_children
+                assert_valid(n_children != 1, f"Nested choice '{c.full_name}' cannot have exactly one child node")
+
+        if decision_units:
+            assert_valid(self.decision_units is not None, "Decision units must be defined.")
+
+        if not expressions and not assignment: return
+
+        expr_container = self._expressions if group is None else self._expressions.get_group(group)
+        symbols_to_check = list(expr_container.itersimple()) + list(expr_container.iterchained())
+
+        for name in symbols_to_check:
+            assert_valid(name in self._scope, f"Symbol '{name}' used in expressions but has not been declared")
+            if assignment: assert_valid(self._scope[name].filled, f"Symbol '{name}' is declared but never assigned")
+
     def run_discrete(self, *, random_seed: int=None, n_draws: int=1,
                      astype: Union[str, np.dtype]='category', squeeze: bool=True, n_threads: int=1,
                      clear_scope: bool=True, precision: int=8, result_name: str=None, logger: Logger=None
