@@ -157,6 +157,7 @@ class ChoiceModel(object):
 
         # If there are any assigned symbols, clear them so as not to conflict with the new decision units
         for symbol in self._scope.values():
+            if isinstance(symbol, NumberSymbol): continue  # Don't empty symbols that don't depend on the DU.
             symbol.empty()
 
         if isinstance(item, Index):
