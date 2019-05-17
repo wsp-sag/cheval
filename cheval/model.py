@@ -242,7 +242,7 @@ class ChoiceModel(object):
         """
 
         def assert_valid(condition, message):
-            if condition: raise ModelNotReadyError(message)
+            if not condition: raise ModelNotReadyError(message)
 
         if tree:
             assert_valid(len(self._top_children) >= 2, "At least two or more choices must be defined")
