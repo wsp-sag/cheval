@@ -32,9 +32,9 @@ class Expression(object):
 
     @staticmethod
     def parse(e: str, prior_simple: Set[str] = None, prior_chained: Set[str] = None, mode='cheval') -> 'Expression':
-        e, filter_ = _split_filter(e)
+        split_e, filter_ = _split_filter(e)
 
-        tree = ast.parse(e, mode='eval').body
+        tree = ast.parse(split_e, mode='eval').body
         transformer = ExpressionParser(prior_simple, prior_chained, mode=mode)
         new_tree = transformer.visit(tree)
 

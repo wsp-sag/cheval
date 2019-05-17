@@ -332,7 +332,7 @@ class ChoiceModel(object):
         return col_index.get_loc(index_item)  # Get the column number for the selected choice
 
     def _evaluate_utilities(self, expressions: Union[ExpressionGroup, ExpressionSubGroup], precision=8,
-                            n_threads: int=None, logger: Logger=None) -> DataFrame:
+                            n_threads: int=None, logger: Logger=None, allow_casting=True) -> DataFrame:
         if self._decision_units is None:
             raise ModelNotReadyError("Decision units must be set before evaluating utility expressions")
         if n_threads is None:
@@ -353,6 +353,7 @@ class ChoiceModel(object):
             shared_locals[name] = symbol._get()
 
         ne.set_num_threads(n_threads)
+        casting_rule = 'same_kind' if allow_casting else 'safe'
 
         for expr in expressions:
             if logger is not None: logger.debug(f"Evaluating expression '{expr.raw}'")
@@ -374,20 +375,24 @@ class ChoiceModel(object):
                     data = symbol._get(chain_info=chain_info)
                     local_dict[substitution] = data
 
-            self._kernel_eval(expr.transformed, local_dict, utilities, choice_mask)
+            self._kernel_eval(expr.transformed, local_dict, utilities, choice_mask, casting_rule=casting_rule)
 
         return DataFrame(utilities, index=row_index, columns=col_index)
 
     @staticmethod
-    def _kernel_eval(transformed_expr: str, local_dict: Dict[str, np.ndarray], out: np.ndarray, column_index):
+    def _kernel_eval(transformed_expr: str, local_dict: Dict[str, np.ndarray], out: np.ndarray, column_index,
+                     casting_rule='same_kind'):
         if column_index is not None:
             for key, val in local_dict.items():
-                if hasattr(val, 'shape') and val.shape[1] > 1:
-                    local_dict[key] = val[:, column_index]
+                if hasattr(val, 'shape'):
+                    if val.shape[1] > 1:
+                        local_dict[key] = val[:, column_index]
+                    elif val.shape[1] == 1:
+                        local_dict[key] = val[:, 0]
             out = out[:, column_index]
 
         expr_to_run = f"{OUT_STR} + ({transformed_expr})"
-        ne.evaluate(expr_to_run, local_dict=local_dict, out=out)
+        ne.evaluate(expr_to_run, local_dict=local_dict, out=out, casting=casting_rule)
 
     def _convert_result(self, raw_result: ndarray, astype, squeeze: bool, result_name: str) -> Union[Series, DataFrame]:
         n_draws = raw_result.shape[1]
