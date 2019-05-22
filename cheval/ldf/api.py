@@ -625,6 +625,8 @@ class LinkedDataFrame(DataFrame):
                 ld[column] = convert_series(self[column], allow_raw=False)
             except TypeError:
                 pass
+            except KeyError:
+                if column not in ld: raise
 
         for link_name, chain_symbol in new_expr.chains.items():
             assert self._has_link(link_name), f"Link '{link_name}' does not exist"
