@@ -340,10 +340,13 @@ class ChoiceModel(object):
         if logger is not None: logger.debug("Allocating utility table")
         row_index = self._decision_units
         col_index = self.choices
-        r, c = len(row_index), len(col_index)
 
-        dtype_str = "f%s" % precision
-        utilities = np.zeros([r, c], dtype=dtype_str)
+        if self._cached_utils is None:
+            r, c = len(row_index), len(col_index)
+            dtype_str = "f%s" % precision
+            utilities = np.zeros([r, c], dtype=dtype_str)
+        else:
+            utilities = self._cached_utils.values
 
         if logger is not None: logger.debug("Building shared locals")
         # Prepare locals, including scalar, vector, and matrix variables that don't need any further processing.
@@ -493,9 +496,7 @@ class ChoiceModel(object):
         self.validate(group=group)
         subgroup = self._expressions.get_group(group)
         utilities = self._evaluate_utilities(subgroup, precision=precision, n_threads=n_threads, logger=logger)
-        if self._cached_utils is None:
-            self._cached_utils = utilities
-        else: self._cached_utils += utilities
+        self._cached_utils = utilities
 
         if cleanup_scope:
             # Need to get a set of only those symbols unique to this group, using set math
