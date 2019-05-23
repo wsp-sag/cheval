@@ -287,7 +287,7 @@ class VectorSymbol(AbstractSymbol):
         self._raw_array: np.ndarray = None
 
     def assign(self, data):
-        index_to_check = self._parent.decision_units if self._orientation else self._parent.choices
+        index_to_check = self._parent.choices if self._orientation else self._parent.decision_units
 
         if isinstance(data, pd.Series):
             assert index_to_check.equals(data.index), "Series does not match context rows or columns"
