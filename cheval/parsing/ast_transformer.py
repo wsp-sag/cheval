@@ -41,6 +41,7 @@ class ExpressionParser(ast.NodeTransformer):
         self.simple_symbols: Set[str] = set() if prior_simple is None else prior_simple
         self.all_chained_symbols = prior_chained if prior_chained is not None else set()
         self.chained_symbols: Dict[str, ChainedSymbol] = {}
+        self.visited_simple: Set[str] = set()
 
     def visit(self, node):
         return self.__get_visitor(node)(node)
@@ -204,6 +205,7 @@ class ExpressionParser(ast.NodeTransformer):
             raise UnsupportedSyntaxError("Inconsistent use for symbol '%s'" % symbol_name)
         else:
             self.simple_symbols.add(symbol_name)
+            self.visited_simple.add(symbol_name)
         return node
 
     # endregion

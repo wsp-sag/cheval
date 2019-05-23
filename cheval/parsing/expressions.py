@@ -39,7 +39,7 @@ class Expression(object):
         new_tree = transformer.visit(tree)
 
         new_e = Expression(e, astor.to_source(new_tree), transformer.chained_symbols, transformer.dict_literals,
-                           filter_, transformer.simple_symbols)
+                           filter_, transformer.visited_simple)
         return new_e
 
     @property
