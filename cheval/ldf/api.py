@@ -742,7 +742,7 @@ class LinkedDataFrame(DataFrame):
                 new_columns.append(sub_item)
                 flags.append(False)
             else:
-                new_column_values = self.eval(item)  # Evaluate the column to find links
+                new_column_values = self.eval(sub_item)  # Evaluate the column to find links
                 counter = 0
                 new_column_name = f"temp_{counter}"
                 while new_column_name in self:
