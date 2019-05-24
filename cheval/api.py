@@ -1,4 +1,4 @@
-from typing import Dict, Union, Set, TYPE_CHECKING, List, Generator, Hashable
+from typing import Dict, Union, Set, TYPE_CHECKING, List, Generator, Hashable, Any
 import abc
 from collections import deque
 
@@ -389,46 +389,62 @@ class TableSymbol(AbstractSymbol):
 
 class MatrixSymbol(AbstractSymbol):
 
-    def __init__(self, parent: 'ChoiceModel', name: str, allow_transpose: bool=True, allow_row_reindex=True,
-                 allow_col_reindex=True):
+    def __init__(self, parent: 'ChoiceModel', name: str, orientation: int = 0, reindex_cols=True, reindex_rows=True):
         super().__init__(parent, name)
-        self._allow_transpose = bool(allow_transpose)
         self._matrix: np.ndarray = None
+        assert orientation in {0, 1}
+        self._orientation = orientation
+        self._reindex_cols = reindex_cols
+        self._reindex_rows = reindex_rows
 
     def assign(self, data):
         rows = self._parent.decision_units
         cols = self._parent.choices
 
+        if self._orientation == 1:
+            data = data.transpose()
+
         if isinstance(data, pd.DataFrame):
-            if rows.equals(data.index) and cols.equals(data.columns):
-                # Orientation matches
-                array = data.values.astype('f8')
-            elif rows.equals(data.columns) and cols.equals(data.index):
-                assert self._allow_transpose
-                array = data.transpose().values.astype('f8')
+
+            rows_match = rows.equals(data.index)
+            cols_match = cols.equals(data.columns)
+
+            if rows_match and cols_match:
+                self._matrix = data.values
             else:
-                raise TypeError("Shapes do not match")
-        elif isinstance(data, np.ndarray):
-            assert len(data.shape) == 2
-            r, c = data.shape
-            if r == len(rows) and c == len(cols):
-                array = data.astype('f8')
-            elif r == len(cols) and c == len(rows):
-                assert self._allow_transpose
-                array = data.transpose().astype('f8')
-            else:
-                raise TypeError("Shapes do not match")
+                '''
+                Try to manually control the amount of excess RAM needed for partial utilities, as Pandas reindex()
+                is quite hungry. If np.empty() is used, the resulting array will use very little memory - except for the
+                cells with data. This is important to keep this feature scalable.
+                '''
+
+                matrix = np.empty([len(rows), len(cols)], dtype=data.values.dtype)
+                if not cols_match:
+                    assert self._reindex_cols
+                    col_indexer = data.columns.get_indexer(cols)
+                    col_indexer = col_indexer[col_indexer != -1]
+                    assert len(col_indexer) == data.shape[1]
+                else: col_indexer = slice(None)
+
+                if not rows_match:
+                    assert self._reindex_rows
+                    row_indexer = data.index.get_indexer(rows)
+                    row_indexer = row_indexer[row_indexer != -1]
+                    assert len(row_indexer) == data.shape[0]
+                else: row_indexer = slice(None)
+
+                matrix[row_indexer, col_indexer] = data
+                self._matrix = matrix
+
         else:
             raise TypeError(type(data))
-
-        self._matrix = array
 
     def _get(self): return self._matrix
 
     def empty(self): self._matrix = None
 
     def copy(self, new_parent: 'ChoiceModel', copy_data):
-        new = MatrixSymbol(new_parent, self._name, self._allow_transpose)
+        new = MatrixSymbol(new_parent, self._name, self._orientation, self._reindex_cols, self._reindex_rows)
         if copy_data:
             new._matrix = self._matrix
         return new

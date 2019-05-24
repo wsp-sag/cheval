@@ -199,10 +199,19 @@ class ChoiceModel(object):
         """
         self._scope[name] = TableSymbol(self, name, orientation, mandatory_attributes, allow_links)
 
-    def declare_matrix(self, name: str, allow_transpose=True):
-        """Declares a 2D variable which aligns with both the decision units (rows) and choices (columns). Of limited
-        use."""
-        self._scope[name] = MatrixSymbol(self, name, allow_transpose)
+    def declare_matrix(self, name: str, orientation: int = 0, reindex_cols=True, reindex_rows=True):
+        """
+        Declares a matrix that fully or partially aligns with the rows or columns. This is useful when manual control
+        is needed over both the decision units and the choices. Only DataFrames are supported.
+
+        Args:
+            name:
+            orientation:
+            reindex_cols:
+            reindex_rows:
+
+        """
+        self._scope[name] = MatrixSymbol(self, name, orientation, reindex_cols, reindex_rows)
 
     def __getitem__(self, item) -> AbstractSymbol:
         """Gets a declared symbol to be assigned"""
