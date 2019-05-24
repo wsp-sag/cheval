@@ -217,13 +217,14 @@ class ExpressionGroup(object):
     def drop_group(self, name: Hashable):
         del self._subgroups[name]
 
-    def copy(self):
+    def copy(self) -> 'ExpressionGroup':
         new = ExpressionGroup()
         for e in self._ungrouped_expressions: new._ungrouped_expressions.append(e)
         for name, subgroup in self._subgroups.items():
             new_sg = ExpressionSubGroup(name)
             for e in subgroup: new_sg.append(e)
             new._subgroups[name] = new_sg
+        return new
 
 # endregion
 # region Symbols for scope
