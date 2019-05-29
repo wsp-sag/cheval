@@ -544,12 +544,15 @@ class ChoiceModel(object):
         # shouldn't be changing these at this point
         new._cached_cols = self._cached_cols
 
+        # Force the DU to be copied if the assigned scope is also being copied
+        if scope_assigned: decision_units = True
+
         if scope_declared or scope_assigned:
             for name, symbol in self._scope.items():
                 new._scope[name] = symbol.copy(new, copy_data=scope_assigned)
 
         if self._decision_units is not None and decision_units:
-            new.decision_units = self.decision_units
+            new._decision_units = self._decision_units
 
         if expressions:
             # A new ExpressionGroup instance is important to allow copies to drop expressions and groups
