@@ -637,7 +637,8 @@ class LinkedDataFrame(DataFrame):
 
                 ld[substitution] = convert_series(series)
 
-        vector = ne.evaluate(new_expr.transformed, local_dict=ld)
+        if out is not None: out = out.values
+        vector = ne.evaluate(new_expr.transformed, local_dict=ld, out=out)
         return Series(vector, index=self.index)
 
     @deprecated(reason="Use LinkedDataFrame.evaluate() instead, to avoid confusion over NumExpr semantics")
