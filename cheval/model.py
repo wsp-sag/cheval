@@ -8,7 +8,7 @@ from pandas import Series, DataFrame, Index, MultiIndex
 import pandas as pd
 from numpy import ndarray
 import numpy as np
-import numexpr as ne
+import numexpr3 as ne
 import numba as nb
 
 from .api import AbstractSymbol, ExpressionGroup, ChoiceNode, NumberSymbol, VectorSymbol, TableSymbol, MatrixSymbol, ExpressionSubGroup
@@ -398,8 +398,9 @@ class ChoiceModel(object):
                         local_dict[key] = val[:, 0]
             out = out[:, column_index]
 
-        expr_to_run = f"{OUT_STR} + ({transformed_expr})"
-        ne.evaluate(expr_to_run, local_dict=local_dict, out=out, casting=casting_rule)
+        local_dict[OUT_STR] = out
+        expr_to_run = f"{OUT_STR} += ({transformed_expr})".replace('\n', '')
+        ne.evaluate(expr_to_run, local_dict=local_dict, casting=casting_rule)
 
     def _convert_result(self, raw_result: ndarray, astype, squeeze: bool, result_name: str) -> Union[Series, DataFrame]:
         n_draws = raw_result.shape[1]

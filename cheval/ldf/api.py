@@ -7,7 +7,7 @@ import pandas as pd
 from numpy import ndarray
 import numpy as np
 import attr
-import numexpr as ne
+import numexpr3 as ne
 from deprecated import deprecated
 
 from .constants import LinkageSpecificationError, LinkAggregationRequired
@@ -637,8 +637,13 @@ class LinkedDataFrame(DataFrame):
 
                 ld[substitution] = convert_series(series)
 
-        if out is not None: out = out.values
-        vector = ne.evaluate(new_expr.transformed, local_dict=ld, out=out)
+        if out is not None:
+            expr_to_run = f"{OUT_STR} = {new_expr.transformed}".replace('\n', '')
+            ld[OUT_STR] = out.values
+            ne.evaluate(expr_to_run, local_dict=ld)
+            return out
+        else:
+            vector = ne.evaluate(new_expr.transformed.replace('\n', ''), local_dict=ld)
         return Series(vector, index=self.index)
 
     @deprecated(reason="Use LinkedDataFrame.evaluate() instead, to avoid confusion over NumExpr semantics")

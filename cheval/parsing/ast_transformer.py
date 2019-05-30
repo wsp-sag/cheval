@@ -7,7 +7,7 @@ from collections import deque
 import astor
 import numpy as np
 import pandas as pd
-from numexpr import expressions as nee
+import numexpr3 as ne
 
 from .exceptions import UnsupportedSyntaxError
 from .expr_items import ChainedSymbol, EvaluationMode
@@ -17,7 +17,8 @@ from .constants import *
 _UNSUPPORTED_NODES: Tuple[type] = (ast.Load, ast.Store, ast.Del, ast.IfExp, ast.Subscript, ast.ListComp, ast.DictComp,
                                    ast.Starred)
 _NAN_REPRESENTATIONS = {'none', 'nan'}
-_NUMEXPR_FUNCTIONS = set(nee.functions.keys())
+_NUMEXPR_FUNCTIONS = {t[0] for t in ne.OPTABLE.keys() if isinstance(t[0], str) and not t[0].startswith('_')}
+_NUMEXPR_FUNCTIONS -= {''}  # The OPTABLE has a few keys without a function
 _SUPPORTED_AGGREGATIONS = {
     'count', 'first', 'last', 'max', 'min', 'mean', 'median', 'prod', 'std', 'sum', 'var'
 }

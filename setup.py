@@ -20,7 +20,7 @@ setup(
         'numpy>=1.14',
         'astor',
         'numba',
-        'numexpr',
+        'numexpr3',
         'attrs',
         'deprecated'
     ]
