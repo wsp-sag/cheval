@@ -607,7 +607,7 @@ class LinkedDataFrame(DataFrame):
 
     # region Expression evaluation
 
-    def evaluate(self, expr, local_dict: Dict[str, Any] = None, out: Series = None):
+    def evaluate(self, expr, local_dict: Dict[str, Any] = None, out: Series = None, allow_casting=True):
         new_expr = Expression.parse(expr, mode=EvaluationMode.DATAFRAME)
 
         ld = {} if local_dict is None else local_dict.copy()
@@ -638,7 +638,8 @@ class LinkedDataFrame(DataFrame):
                 ld[substitution] = convert_series(series)
 
         if out is not None: out = out.values
-        vector = ne.evaluate(new_expr.transformed, local_dict=ld, out=out)
+        casting_rule = 'same_kind' if allow_casting else 'safe'
+        vector = ne.evaluate(new_expr.transformed, local_dict=ld, out=out, casting=casting_rule)
         return Series(vector, index=self.index)
 
     @deprecated(reason="Use LinkedDataFrame.evaluate() instead, to avoid confusion over NumExpr semantics")
