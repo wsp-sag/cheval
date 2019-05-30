@@ -8,7 +8,6 @@ import astor
 import numpy as np
 import pandas as pd
 from numexpr import expressions as nee
-import six
 
 from .exceptions import UnsupportedSyntaxError
 from .expr_items import ChainedSymbol, EvaluationMode
@@ -16,12 +15,8 @@ from .expr_items import ChainedSymbol, EvaluationMode
 NAN_STR = '__NAN'  # This needs to be recognized by other modules
 
 # Only nodes used in expressions are included, due to the limited parsing
-_UNSUPPORTED_NODES: list = [
-    ast.Load, ast.Store, ast.Del, ast.IfExp, ast.Subscript, ast.ListComp, ast.DictComp
-]
-if six.PY3:
-    _UNSUPPORTED_NODES.append(ast.Starred)
-_UNSUPPORTED_NODES: Tuple[type] = tuple(_UNSUPPORTED_NODES)
+_UNSUPPORTED_NODES: Tuple[type] = (ast.Load, ast.Store, ast.Del, ast.IfExp, ast.Subscript, ast.ListComp, ast.DictComp,
+                                   ast.Starred)
 _NAN_REPRESENTATIONS = {'none', 'nan'}
 _NUMEXPR_FUNCTIONS = set(nee.functions.keys())
 _SUPPORTED_AGGREGATIONS = {
@@ -56,9 +51,7 @@ class ExpressionParser(ast.NodeTransformer):
 
     def visit_str(self, node):
         # Converts text-strings to NumExpr-supported byte-strings
-        if six.PY3:
-            return ast.Bytes(node.s.encode())
-        return node
+        return ast.Bytes(node.s.encode())
 
     def visit_unaryop(self, node):
         # Converts 'not' into '~' which NumExpr supports
