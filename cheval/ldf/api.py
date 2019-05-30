@@ -13,6 +13,7 @@ from .constants import LinkageSpecificationError, LinkAggregationRequired
 from .missing_data import SeriesFillManager, infer_dtype, PandasDtype
 from ..parsing.expressions import Expression
 from ..parsing.expr_items import EvaluationMode
+from ..parsing.constants import *
 from cheval.misc import convert_series
 
 _FillFunctionType = Callable[[Series], Union[int, float, bool, str]]

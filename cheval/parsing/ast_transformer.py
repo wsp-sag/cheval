@@ -11,8 +11,7 @@ from numexpr import expressions as nee
 
 from .exceptions import UnsupportedSyntaxError
 from .expr_items import ChainedSymbol, EvaluationMode
-
-NAN_STR = '__NAN'  # This needs to be recognized by other modules
+from .constants import *
 
 # Only nodes used in expressions are included, due to the limited parsing
 _UNSUPPORTED_NODES: Tuple[type] = (ast.Load, ast.Store, ast.Del, ast.IfExp, ast.Subscript, ast.ListComp, ast.DictComp,

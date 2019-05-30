@@ -13,14 +13,9 @@ import numba as nb
 
 from .api import AbstractSymbol, ExpressionGroup, ChoiceNode, NumberSymbol, VectorSymbol, TableSymbol, MatrixSymbol, ExpressionSubGroup
 from .exceptions import ModelNotReadyError
-from .parsing import NAN_STR as NAN_STR
 from .core import (worker_nested_probabilities, worker_nested_sample, worker_multinomial_probabilities,
                    worker_multinomial_sample)
-
-
-OUT_STR = "__OUT"
-NEG_INF_STR = "NEG_INF"
-NEG_INF = -np.inf
+from .parsing.constants import *
 
 
 class ChoiceModel(object):
@@ -359,7 +354,7 @@ class ChoiceModel(object):
 
         if logger is not None: logger.debug("Building shared locals")
         # Prepare locals, including scalar, vector, and matrix variables that don't need any further processing.
-        shared_locals = {NAN_STR: np.nan, OUT_STR: utilities, NEG_INF_STR: NEG_INF}
+        shared_locals = {NAN_STR: np.nan, OUT_STR: utilities, NEG_INF_STR: NEG_INF_VAL}
         for name in expressions.itersimple():
             symbol = self._scope[name]
             shared_locals[name] = symbol._get()
