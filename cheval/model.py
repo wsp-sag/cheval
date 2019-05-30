@@ -83,6 +83,8 @@ class ChoiceModel(object):
     @property
     def choices(self) -> Index:
         """Pandas Index representing the choices in the model"""
+        if self._cached_cols is not None: return self._cached_cols
+
         self.validate(decision_units=False, expressions=False, assignment=False)
         max_level = self.depth
 
