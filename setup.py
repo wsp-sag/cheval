@@ -21,6 +21,7 @@ setup(
         'astor',
         'numba',
         'numexpr',
-        'attrs'
+        'attrs',
+        'deprecated'
     ]
 )

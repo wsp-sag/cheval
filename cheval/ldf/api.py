@@ -8,6 +8,7 @@ from numpy import ndarray
 import numpy as np
 import attr
 import numexpr as ne
+from deprecated import deprecated
 
 from .constants import LinkageSpecificationError, LinkAggregationRequired
 from .missing_data import SeriesFillManager, infer_dtype, PandasDtype
@@ -606,21 +607,13 @@ class LinkedDataFrame(DataFrame):
 
     # region Expression evaluation
 
-    def eval(self, expr, *args, **kwargs):
-        """
-        Overload of DataFrame.eval(), which adds string and categorical support, but removes some of the flexibility
-        (such as the inplace arg, and the ability to change engines). Also supports links inside the expression.
-
-        Args:
-            expr:
-
-        Returns:
-
-        """
-
+    def evaluate(self, expr, local_dict: Dict[str, Any] = None, out: Series = None):
         new_expr = Expression.parse(expr, mode=EvaluationMode.DATAFRAME)
 
-        ld = {} if 'local_dict' not in kwargs else kwargs['local_dict'].copy()
+        ld = {} if local_dict is None else local_dict.copy()
+        ld[NEG_INF_STR] = NEG_INF_VAL
+        ld[NAN_STR] = NAN_VAL
+
         for column in new_expr.symbols:
             try:
                 ld[column] = convert_series(self[column], allow_raw=False)
@@ -646,6 +639,10 @@ class LinkedDataFrame(DataFrame):
 
         vector = ne.evaluate(new_expr.transformed, local_dict=ld)
         return Series(vector, index=self.index)
+
+    @deprecated(reason="Use LinkedDataFrame.evaluate() instead, to avoid confusion over NumExpr semantics")
+    def eval(self, expr, *args, **kwargs):
+        return self.evaluate(expr, *args, **kwargs)
 
     # endregion
 
