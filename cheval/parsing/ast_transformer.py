@@ -80,6 +80,32 @@ class ExpressionParser(ast.NodeTransformer):
             i += 1
         return left
 
+    def visit_compare(self, compare_node: ast.Compare):
+        # Visit downstream symbols
+        new_left = self.visit(compare_node.left)
+        new_comparators = [self.visit(node) for node in compare_node.comparators]
+
+        # Simple comparison node
+        if len(new_comparators) == 1:
+            return ast.Compare(left=new_left, comparators=[new_comparators[0]], ops=compare_node.ops)
+
+        # Compound comparison node
+
+        # Convert to multiple Compare operations
+        new_nodes, left = [], new_left
+        for right, op in zip(new_comparators, compare_node.ops):
+            new_node = ast.Compare(left=left, comparators=[right], ops=[op])
+            new_nodes.append(new_node)
+            left = right
+
+        assert len(new_nodes) >= 2
+
+        bin_op = ast.BinOp(left=new_nodes[0], right=new_nodes[1], op=ast.BitAnd())
+        for new_right in new_nodes[2:]:
+            bin_op = ast.BinOp(left=bin_op, right=new_right, op=ast.BitAnd())
+        return bin_op
+
+
     def visit_call(self, node):
         func_node = node.func
 
