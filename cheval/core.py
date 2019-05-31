@@ -2,7 +2,7 @@
 from typing import Union, Tuple
 import numpy as np
 from numpy import ndarray
-from numba import prange, njit, float64 as ndouble, int64 as nlong, void
+from numba import prange, njit, float64 as ndouble, int64 as nlong, void, float32 as nfloat
 from numba.types import Tuple as NTuple, optional as maybe
 
 MIN_RANDOM_VALUE = np.finfo(np.float64).tiny
@@ -118,7 +118,9 @@ def simple_probabilities(weights: ndarray) -> ndarray:
     return weights / weights.sum()
 
 
-@njit(NTuple((ndouble[:], ndouble))(ndouble[:]), nogil=True)
+@njit([
+    NTuple((ndouble[:], ndouble))(ndouble[:]), NTuple((ndouble[:], ndouble))(nfloat[:])
+], nogil=True)
 def multinomial_probabilities(utilities: ndarray) -> Tuple[ndarray, float]:
     n_cols = len(utilities)
     p = np.zeros(n_cols, dtype=np.float64)  # Return value
@@ -138,10 +140,13 @@ def multinomial_probabilities(utilities: ndarray) -> Tuple[ndarray, float]:
     return p, ls
 
 
-@njit(NTuple((ndouble[:], ndouble))(ndouble[:], nlong[:], nlong[:], ndouble[:]), nogil=True)
+@njit([
+    NTuple((ndouble[:], ndouble))(ndouble[:], nlong[:], nlong[:], ndouble[:]),
+    NTuple((ndouble[:], ndouble))(nfloat[:], nlong[:], nlong[:], ndouble[:])
+], nogil=True)
 def nested_probabilities(utilities: ndarray, hierarchy, levels, logsum_scales) -> Tuple[ndarray, float]:
     n_cells = len(utilities)
-    probabilities = utilities.copy()
+    probabilities = utilities.astype(np.float64)
     top_logsum = 0
     logsums = np.zeros(n_cells, dtype=np.float64)
 
@@ -207,27 +212,39 @@ def simple_multisample(weights: ndarray, n: int, seed: int, out: ndarray=None) -
     return sample_multi(p_array, n, seed, out)
 
 
-@njit(NTuple((nlong, ndouble))(ndouble[:], ndouble), nogil=True)
+@njit([
+    NTuple((nlong, ndouble))(ndouble[:], ndouble),
+    NTuple((nlong, ndouble))(nfloat[:], ndouble)
+], nogil=True)
 def multinomial_sample(utilities: ndarray, r: float) -> Tuple[int, float]:
     """Samples once from an array of multinomial logit utilities, from an existing random draw"""
     p_array, ls = multinomial_probabilities(utilities)
     return sample_once(p_array, r), ls
 
 
-@njit(NTuple((nlong[:], ndouble))(ndouble[:], nlong, nlong, maybe(nlong[:])), nogil=True)
+@njit([
+    NTuple((nlong[:], ndouble))(ndouble[:], nlong, nlong, maybe(nlong[:])),
+    NTuple((nlong[:], ndouble))(nfloat[:], nlong, nlong, maybe(nlong[:]))
+], nogil=True)
 def multinomial_multisample(utilities: ndarray, n: int, seed: int, out: ndarray=None) -> Tuple[np.ndarray, float]:
     """Samples multiple times from an array of multinomial logit utilities, based on a random seed. Thread-safe."""
     p_array, ls = multinomial_probabilities(utilities)
     return sample_multi(p_array, n, seed, out), ls
 
 
-@njit(NTuple((nlong, ndouble))(ndouble[:], ndouble, nlong[:], nlong[:], ndouble[:]), nogil=True)
+@njit([
+    NTuple((nlong, ndouble))(ndouble[:], ndouble, nlong[:], nlong[:], ndouble[:]),
+    NTuple((nlong, ndouble))(nfloat[:], ndouble, nlong[:], nlong[:], ndouble[:])
+], nogil=True)
 def nested_sample(utilities: ndarray, r: float, parents, levels, ls_scales) -> Tuple[int, float]:
     p_array, ls = nested_probabilities(utilities, parents, levels, ls_scales)
     return sample_once(p_array, r), ls
 
 
-@njit(NTuple((nlong[:], ndouble))(ndouble[:], nlong[:], nlong[:], ndouble[:], nlong, nlong, maybe(nlong[:])), nogil=True)
+@njit([
+    NTuple((nlong[:], ndouble))(ndouble[:], nlong[:], nlong[:], ndouble[:], nlong, nlong, maybe(nlong[:])),
+    NTuple((nlong[:], ndouble))(nfloat[:], nlong[:], nlong[:], ndouble[:], nlong, nlong, maybe(nlong[:]))
+], nogil=True)
 def nested_multisample(utilities: ndarray, parents, levels, ls_scales, n: int, seed: int, out: ndarray=None) -> Tuple[ndarray, float]:
     p_array, ls = nested_probabilities(utilities, parents, levels, ls_scales)
     return sample_multi(p_array, n, seed, out), ls
@@ -259,7 +276,10 @@ def worker_weighted_sample(weights: ndarray, n: int, seed: int) -> ndarray:
     return result
 
 
-@njit(NTuple((nlong[:, :], ndouble[:]))(ndouble[:, :], nlong, nlong), parallel=True, nogil=True)
+@njit([
+    NTuple((nlong[:, :], ndouble[:]))(ndouble[:, :], nlong, nlong),
+    NTuple((nlong[:, :], ndouble[:]))(nfloat[:, :], nlong, nlong)
+], parallel=True, nogil=True)
 def worker_multinomial_sample(utilities: ndarray, n: int, seed: int) -> Tuple[ndarray, ndarray]:
     n_rows = utilities.shape[0]
     result = np.zeros((n_rows, n), dtype=np.int64)
@@ -282,7 +302,10 @@ def worker_multinomial_sample(utilities: ndarray, n: int, seed: int) -> Tuple[nd
     return result, ls_array
 
 
-@njit(NTuple((ndouble[:, :], ndouble[:]))(ndouble[:, :]), parallel=True, nogil=True)
+@njit([
+    NTuple((ndouble[:, :], ndouble[:]))(ndouble[:, :]),
+    NTuple((ndouble[:, :], ndouble[:]))(nfloat[:, :])
+], parallel=True, nogil=True)
 def worker_multinomial_probabilities(utilities: ndarray) -> Tuple[ndarray, ndarray]:
     n_rows, n_cols = utilities.shape
     result = np.zeros((n_rows, n_cols), dtype=np.float64)
@@ -297,7 +320,10 @@ def worker_multinomial_probabilities(utilities: ndarray) -> Tuple[ndarray, ndarr
     return result, ls_array
 
 
-@njit(NTuple((nlong[:, :], ndouble[:]))(ndouble[:, :], nlong[:], nlong[:], ndouble[:], nlong, nlong), parallel=True, nogil=True)
+@njit([
+    NTuple((nlong[:, :], ndouble[:]))(ndouble[:, :], nlong[:], nlong[:], ndouble[:], nlong, nlong),
+    NTuple((nlong[:, :], ndouble[:]))(nfloat[:, :], nlong[:], nlong[:], ndouble[:], nlong, nlong)
+], parallel=True, nogil=True)
 def worker_nested_sample(utilities: ndarray, parents, levels, ls_scales, n: int, seed: int) -> Tuple[ndarray, ndarray]:
     n_rows = len(utilities)
     result = np.zeros((n_rows, n), dtype=np.int64)
@@ -322,7 +348,10 @@ def worker_nested_sample(utilities: ndarray, parents, levels, ls_scales, n: int,
     return result, ls_array
 
 
-@njit(NTuple((ndouble[:, :], ndouble[:]))(ndouble[:, :], nlong[:], nlong[:], ndouble[:]), parallel=True, nogil=True)
+@njit([
+    NTuple((ndouble[:, :], ndouble[:]))(ndouble[:, :], nlong[:], nlong[:], ndouble[:]),
+    NTuple((ndouble[:, :], ndouble[:]))(nfloat[:, :], nlong[:], nlong[:], ndouble[:])
+], parallel=True, nogil=True)
 def worker_nested_probabilities(utilities: ndarray, parents, levels, ls_scales) -> Tuple[ndarray, ndarray]:
     n_rows, n_cols = utilities.shape
     result = np.zeros((n_rows, n_cols), dtype=np.float64)
