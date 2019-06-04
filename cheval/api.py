@@ -407,8 +407,8 @@ class MatrixSymbol(AbstractSymbol):
 
         if isinstance(data, pd.DataFrame):
 
-            rows_match = rows.equals(data.index)
-            cols_match = cols.equals(data.columns)
+            rows_match = data.index is rows or rows.equals(data.index)
+            cols_match = data.columns is cols or cols.equals(data.columns)
 
             if rows_match and cols_match:
                 self._matrix = data.values
