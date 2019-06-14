@@ -10,11 +10,12 @@ from numpy import ndarray
 import numpy as np
 import numexpr as ne
 import numba as nb
+from deprecated import deprecated
 
 from .api import AbstractSymbol, ExpressionGroup, ChoiceNode, NumberSymbol, VectorSymbol, TableSymbol, MatrixSymbol, ExpressionSubGroup
 from .exceptions import ModelNotReadyError
 from .core import (worker_nested_probabilities, worker_nested_sample, worker_multinomial_probabilities,
-                   worker_multinomial_sample)
+                   worker_multinomial_sample, fast_indexed_add)
 from .parsing.constants import *
 
 
@@ -38,6 +39,16 @@ class ChoiceModel(object):
     def precision(self, i: int):
         assert i in {4, 8}, f"Only precision values of 4 or 8 are allowed (got {i})"
         self._precision = i
+
+    @property
+    def _partial_utilities(self) -> DataFrame:
+        self.validate(expressions=False, assignment=False)
+        if self._cached_utils is None:
+            dtype = np.dtype(f"f{self._precision}")
+            table = DataFrame(dtype(0), index=self.decision_units, columns=self.choices)
+            self._cached_utils = table
+        else: table = self._cached_utils
+        return table
 
     # region Tree operations
 
@@ -206,6 +217,7 @@ class ChoiceModel(object):
         """
         self._scope[name] = TableSymbol(self, name, orientation, mandatory_attributes, allow_links)
 
+    @deprecated(reason="Use ChoiceModel.add_partial_utilities() instead")
     def declare_matrix(self, name: str, orientation: int = 0, reindex_cols=True, reindex_rows=True):
         """
         Declares a matrix that fully or partially aligns with the rows or columns. This is useful when manual control
@@ -355,12 +367,7 @@ class ChoiceModel(object):
         row_index = self._decision_units
         col_index = self.choices
 
-        if self._cached_utils is None:
-            r, c = len(row_index), len(col_index)
-            dtype_str = "f%s" % self._precision
-            utilities = np.zeros([r, c], dtype=dtype_str)
-        else:
-            utilities = self._cached_utils.values
+        utilities = self._partial_utilities.values
 
         if logger is not None: logger.debug("Building shared locals")
         # Prepare locals, including scalar, vector, and matrix variables that don't need any further processing.
@@ -568,5 +575,30 @@ class ChoiceModel(object):
             new._cached_utils = self._cached_utils.copy(deep=True)
 
         return new
+
+    def add_partial_utilities(self, table: DataFrame, reindex_rows=False, reindex_columns=True):
+        """
+        Optimized function for adding partial utilities to the cached table from an external source.
+
+        Args:
+            table:
+            reindex_rows:
+            reindex_columns:
+
+        """
+        self.validate(expressions=False, assignment=False)
+
+        row_indexer = None
+        if not self.decision_units.equals(table.index):
+            if not reindex_rows: raise KeyError("Partial utility table index must match model decision units when reindex_rows=False")
+            row_indexer = table.index.get_indexer(self.decision_units)
+
+        col_indexer = None
+        if not self.choices.equals(table.columns):
+            if not reindex_columns: raise KeyError("Partial utility table columns must match model choices when reindex_columns=False")
+            col_indexer = table.columns.get_indexer(self.choices)
+
+        target_table = self._partial_utilities.values
+        fast_indexed_add(target_table, table.values, row_indexer, col_indexer)
 
     # endregion
