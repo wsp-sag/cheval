@@ -173,10 +173,14 @@ def nested_probabilities(utilities: ndarray, hierarchy, levels, logsum_scales) -
 
     # Step 2: Use logsums to compute conditional probabilities
     for index, parent in enumerate(hierarchy):
-        ls = top_logsum if parent == -1 else logsums[parent]
-        if ls <= 0:
-            raise UtilityBoundsError("Nested logit utilities in nest all exceeded minimum value (logsum == 0)")
-        probabilities[index] = probabilities[index] / ls
+        if parent == -1:
+            if top_logsum <= 0:
+                raise UtilityBoundsError("Nested logit top-level logsum is 0.0")
+            ls = top_logsum
+        else:
+            ls = logsums[parent]
+        p = 0.0 if ls <= 0 else probabilities[index] / ls
+        probabilities[index] = p
 
     # Step 3: Compute absolute probabilities for child nodes, collecting parent nodes
     for current_level in range(1, max_level + 1):
