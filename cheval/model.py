@@ -20,7 +20,7 @@ from .parsing.constants import *
 
 class ChoiceModel(object):
 
-    def __init__(self):
+    def __init__(self, *, precision: int = 8):
         self._max_level: int = 0
         self._top_children: Dict[str, ChoiceNode] = {}
         self._expressions: ExpressionGroup = ExpressionGroup()
@@ -28,6 +28,16 @@ class ChoiceModel(object):
         self._decision_units: Index = None
         self._cached_cols: Index = None
         self._cached_utils: DataFrame = None
+        self._precision: int = 0
+        self.precision = precision
+
+    @property
+    def precision(self) -> int: return self._precision
+
+    @precision.setter
+    def precision(self, i: int):
+        assert i in {4, 8}, f"Only precision values of 4 or 8 are allowed (got {i})"
+        self._precision = i
 
     # region Tree operations
 
@@ -270,9 +280,9 @@ class ChoiceModel(object):
             assert_valid(name in self._scope, f"Symbol '{name}' used in expressions but has not been declared")
             if assignment: assert_valid(self._scope[name].filled, f"Symbol '{name}' is declared but never assigned")
 
-    def run_discrete(self, *, random_seed: int=None, n_draws: int=1,
-                     astype: Union[str, np.dtype]='category', squeeze: bool=True, n_threads: int=1,
-                     clear_scope: bool=True, precision: int=8, result_name: str=None, logger: Logger=None
+    def run_discrete(self, *, random_seed: int = None, n_draws: int = 1,
+                     astype: Union[str, np.dtype] = 'category', squeeze: bool = True, n_threads: int = 1,
+                     clear_scope: bool = True, result_name: str = None, logger: Logger = None
                      ) -> Tuple[Union[DataFrame, Series], Series]:
         """
         For each decision unit, discretely sample one or more times (with replacement) from the probability
@@ -290,9 +300,8 @@ class ChoiceModel(object):
             n_threads: The number of threads to uses in the computation. Must be >= 1
             clear_scope: If True and override_utilities not provided, data stored in the scope for
                 utility computation will be released, freeing up memory. Turning this off is of limited use.
-            precision: The number of bytes to store for each cell in the utility array; one of 1, 2, 4, or 8. More
-                precision requires more memory.
             result_name: Name for the result Series or name of the columns of the result DataFrame. Purely aesthetic.
+            logger: Optional Logger instance which reports expressions being evaluated
 
         Returns:
             Tuple[DataFrame or Series, Series]: The first item returned is always the results of the model evaluation,
@@ -308,8 +317,7 @@ class ChoiceModel(object):
         assert n_draws >= 1
 
         # Utility computations
-        utility_table = self._evaluate_utilities(self._expressions, precision=precision, n_threads=n_threads,
-                                                 logger=logger).values
+        utility_table = self._evaluate_utilities(self._expressions, n_threads=n_threads, logger=logger).values
         if clear_scope: self.clear_scope()
 
         # Compute probabilities and sample
@@ -337,8 +345,8 @@ class ChoiceModel(object):
         index_item = tuple(filter_parts + ['.'] * (column_depth - len(filter_parts)))
         return col_index.get_loc(index_item)  # Get the column number for the selected choice
 
-    def _evaluate_utilities(self, expressions: Union[ExpressionGroup, ExpressionSubGroup], precision=8,
-                            n_threads: int=None, logger: Logger=None, allow_casting=True) -> DataFrame:
+    def _evaluate_utilities(self, expressions: Union[ExpressionGroup, ExpressionSubGroup],
+                            n_threads: int = None, logger: Logger = None, allow_casting=True) -> DataFrame:
         if self._decision_units is None:
             raise ModelNotReadyError("Decision units must be set before evaluating utility expressions")
         if n_threads is None:
@@ -349,7 +357,7 @@ class ChoiceModel(object):
 
         if self._cached_utils is None:
             r, c = len(row_index), len(col_index)
-            dtype_str = "f%s" % precision
+            dtype_str = "f%s" % self._precision
             utilities = np.zeros([r, c], dtype=dtype_str)
         else:
             utilities = self._cached_utils.values
@@ -429,8 +437,8 @@ class ChoiceModel(object):
             retval.name = result_name
         return retval
 
-    def run_stochastic(self, n_threads: int=1, clear_scope: bool=True, precision: int=8, logger: Logger=None
-                       ) -> Tuple[DataFrame, Series]:
+    def run_stochastic(self, n_threads: int = 1, clear_scope: bool = True, logger: Logger = None,
+                       group: str = None) -> Tuple[DataFrame, Series]:
         """
         For each record, compute the probability distribution of the logit model. A DataFrame will be returned whose
         columns match the sorted list of node names (alternatives) in the model. Probabilities over all alternatives for
@@ -440,8 +448,8 @@ class ChoiceModel(object):
             n_threads: The number of threads to be used in the computation. Must be >= 1.
             clear_scope: If True and override_utilities not provided, data stored in the scope for
                 utility computation will be released, freeing up memory. Turning this off is of limited use.
-            precision: The number of bytes to store for each cell in the utility array; one of 1, 2, 4, or 8. More
-                precision requires more memory.
+            logger: Optional Logger instance which reports expressions being evaluated
+            group:
 
         Returns:
             Tuple[DataFrame, Series]: The first item returned is always the results of the model evaluation,
@@ -454,8 +462,8 @@ class ChoiceModel(object):
         self.validate()
 
         # Utility computations
-        utility_table = self._evaluate_utilities(self._expressions, precision=precision, n_threads=n_threads,
-                                                 logger=logger).values
+        expressions = self._expressions if group is None else self._expressions.get_group(group)
+        utility_table = self._evaluate_utilities(expressions, n_threads=n_threads, logger=logger).values
         if clear_scope: self.clear_scope()
 
         # Compute probabilities
@@ -476,7 +484,7 @@ class ChoiceModel(object):
 
     # region Advanced functions
 
-    def preval(self, group: Hashable, precision: int = 8, n_threads: int = None, logger: Logger = None,
+    def preval(self, group: Hashable, n_threads: int = None, logger: Logger = None,
                drop_group=True, cleanup_scope=True):
         """
         When using expression groups, "pre-evaluate" the utility expressions for a specified group, caching the utility
@@ -491,7 +499,6 @@ class ChoiceModel(object):
 
         Args:
             group: The name of the group to pre-compute.
-            precision: Number of bytes to use to store utility values.
             n_threads: Number of threads to use to evaluate the expressions
             logger: Optional logger for debugging
             drop_group: If True, the selected group will be "popped" from the set of groups, to avoid re-computing.
@@ -501,7 +508,7 @@ class ChoiceModel(object):
         """
         self.validate(group=group)
         subgroup = self._expressions.get_group(group)
-        utilities = self._evaluate_utilities(subgroup, precision=precision, n_threads=n_threads, logger=logger)
+        utilities = self._evaluate_utilities(subgroup, n_threads=n_threads, logger=logger)
         self._cached_utils = utilities
 
         if cleanup_scope:
