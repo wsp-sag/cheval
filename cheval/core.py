@@ -371,3 +371,80 @@ def worker_nested_probabilities(utilities: ndarray, parents, levels, ls_scales) 
 
 
 # endregion
+
+# region Misc functions
+
+def fast_indexed_add(out: ndarray, addition: ndarray, row_index: ndarray = None, col_index: ndarray = None):
+    """
+    Parallel "a += b" function for large matrices. Also allows "a[:, indexer] += b" for partial tables.
+
+    Args:
+        out:
+        addition:
+        row_index:
+        col_index:
+
+    """
+    rows_a, cols_a = addition.shape
+    rows_o, cols_o = out.shape
+
+    if row_index is None:
+        assert rows_a == rows_o
+    else:
+        assert len(row_index) == rows_a
+        assert row_index.min() >= 0 and row_index.max() < rows_o
+
+    if col_index is None:
+        assert cols_a == cols_o
+    else:
+        assert len(col_index) == cols_a
+        assert col_index.min() >= 0 and col_index.max() < cols_o
+
+    ri_is_none, ci_is_none = row_index is None, col_index is None
+
+    if ri_is_none and ci_is_none:
+        _fast_indexed_add_n_n(out, addition)
+    elif ri_is_none:
+        _fast_indexed_add_n_i(out, addition, col_index)
+    elif ci_is_none:
+        _fast_indexed_add_i_n(out, addition, row_index)
+    else:
+        _fast_indexed_add_i_i(out, addition, row_index, col_index)
+
+
+@njit(parallel=True)
+def _fast_indexed_add_n_n(out, addition):
+    rows_a, cols_a = addition.shape
+    for offset in prange(rows_a * cols_a):
+        row, col = divmod(offset, cols_a)
+        out[row, col] += addition[row, col]
+
+
+@njit(parallel=True)
+def _fast_indexed_add_n_i(out, addition, col_index):
+    rows_a, cols_a = addition.shape
+    for offset in prange(0, rows_a * cols_a):
+        row, col = divmod(offset, cols_a)
+        target_col = col_index[col]
+        out[row, target_col] += addition[row, col]
+
+
+@njit(parallel=True)
+def _fast_indexed_add_i_n(out, addition, row_index):
+    rows_a, cols_a = addition.shape
+    for offset in prange(rows_a * cols_a):
+        row, col = divmod(offset, cols_a)
+        target_row = row_index[row]
+        out[target_row, col] += addition[row, col]
+
+
+@njit(parallel=True)
+def _fast_indexed_add_i_i(out, addition, row_index, col_index):
+    rows_a, cols_a = addition.shape
+    for offset in prange(rows_a * cols_a):
+        row, col = divmod(offset, cols_a)
+        target_row = row_index[row]
+        target_col = col_index[col]
+        out[target_row, target_col] += addition[row, col]
+
+# endregion
