@@ -549,7 +549,7 @@ class ChoiceModel(object):
 
         """
 
-        new = ChoiceModel()
+        new = ChoiceModel(precision=self.precision)
         new._max_level = self._max_level
         new._top_children = self._top_children.copy()  # ChoiceNode refs will be the same, but that's ok because users
         # shouldn't be changing these at this point
