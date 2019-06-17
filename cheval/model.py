@@ -45,7 +45,8 @@ class ChoiceModel(object):
         self.validate(expressions=False, assignment=False)
         if self._cached_utils is None:
             dtype = np.dtype(f"f{self._precision}")
-            table = DataFrame(dtype(0), index=self.decision_units, columns=self.choices)
+            matrix = np.zeros(shape=[len(self.decision_units), len(self.choices)], dtype=dtype)
+            table = DataFrame(matrix, index=self.decision_units, columns=self.choices)
             self._cached_utils = table
         else: table = self._cached_utils
         return table
