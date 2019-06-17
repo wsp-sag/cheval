@@ -561,7 +561,7 @@ class ChoiceModel(object):
 
         if scope_declared or scope_assigned:
             for name, symbol in self._scope.items():
-                new._scope[name] = symbol.copy(new, copy_data=scope_assigned)
+                new._scope[name] = symbol.copy(new, copy_data=scope_assigned, row_mask=None)
 
         if self._decision_units is not None and decision_units:
             new._decision_units = self._decision_units
@@ -574,6 +574,27 @@ class ChoiceModel(object):
             # Make a deep copy of the partial utilities to avoid updating this instance's partial utils later when
             # using +=
             new._cached_utils = self._cached_utils.copy(deep=True)
+
+        return new
+
+    def copy_subset(self, subset_index: Index) -> 'ChoiceModel':
+        assert np.all(subset_index.isin(self.decision_units)), "Subset index contains extra entries"
+        mask = self.decision_units.isin(subset_index)
+
+        new = ChoiceModel(precision=self.precision)
+        new._max_level = self._max_level
+        new._top_children = self._top_children.copy()  # ChoiceNode refs will be the same, but that's ok because users
+        # shouldn't be changing these at this point
+        new._cached_cols = self._cached_cols
+
+        new.decision_units = subset_index
+
+        for name, symbol in self._scope.items():
+            new._scope[name] = symbol.copy(new, copy_data=True, row_mask=mask)
+
+        new._expressions = self._expressions.copy()
+        if self._cached_utils is not None:
+            new._cached_utils = self._cached_utils.loc[mask].copy(deep=True)
 
         return new
 

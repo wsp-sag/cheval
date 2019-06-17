@@ -245,7 +245,7 @@ class AbstractSymbol(object, metaclass=abc.ABCMeta):
     def empty(self): pass
 
     @abc.abstractmethod
-    def copy(self, new_parent: 'ChoiceModel', copy_data) -> 'AbstractSymbol': pass
+    def copy(self, new_parent: 'ChoiceModel', copy_data, row_mask) -> 'AbstractSymbol': pass
 
     @property
     @abc.abstractmethod
@@ -267,7 +267,7 @@ class NumberSymbol(AbstractSymbol):
 
     def empty(self): self._val = None
 
-    def copy(self, new_parent: 'ChoiceModel', copy_data):
+    def copy(self, new_parent: 'ChoiceModel', copy_data, row_mask):
         new = NumberSymbol(new_parent, self._name)
         if copy_data:
             new._val = self._val
@@ -313,10 +313,13 @@ class VectorSymbol(AbstractSymbol):
 
     def empty(self): self._raw_array = None
 
-    def copy(self, new_parent: 'ChoiceModel', copy_data):
+    def copy(self, new_parent: 'ChoiceModel', copy_data, row_mask):
         new = VectorSymbol(new_parent, self._name, self._orientation)
         if copy_data:
-            new._raw_array = self._raw_array
+            if self._orientation == 0 and row_mask:
+                new._raw_array = self._raw_array[row_mask]
+            else:
+                new._raw_array = self._raw_array
 
         return new
 
@@ -379,9 +382,13 @@ class TableSymbol(AbstractSymbol):
     def empty(self):
         self._table = None
 
-    def copy(self, new_parent: 'ChoiceModel', copy_data):
+    def copy(self, new_parent: 'ChoiceModel', copy_data, row_mask):
         new = TableSymbol(new_parent, self._name, self._orientation, self._mandatory_attributes, self._allow_links)
-        if copy_data: new._table = self._table
+        if copy_data:
+            if self._orientation == 0 and row_mask is not None:
+                new._table = self._table.loc[row_mask]
+            else:
+                new._table = self._table
         return new
 
     @property
@@ -444,10 +451,13 @@ class MatrixSymbol(AbstractSymbol):
 
     def empty(self): self._matrix = None
 
-    def copy(self, new_parent: 'ChoiceModel', copy_data):
+    def copy(self, new_parent: 'ChoiceModel', copy_data, row_mask):
         new = MatrixSymbol(new_parent, self._name, self._orientation, self._reindex_cols, self._reindex_rows)
-        if copy_data:
-            new._matrix = self._matrix
+        if copy_data and self._matrix is not None:
+            if row_mask is not None:
+                new._matrix = self._matrix[row_mask, :]
+            else:
+                new._matrix = self._matrix
         return new
 
     @property
