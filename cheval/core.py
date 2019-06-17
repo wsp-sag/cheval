@@ -417,7 +417,8 @@ def _fast_indexed_add_n_n(out, addition):
     rows_a, cols_a = addition.shape
     for offset in prange(rows_a * cols_a):
         row, col = divmod(offset, cols_a)
-        out[row, col] += addition[row, col]
+        rowi, coli = int(row), int(col)
+        out[rowi, coli] += addition[rowi, coli]
 
 
 @njit(parallel=True)
@@ -425,8 +426,9 @@ def _fast_indexed_add_n_i(out, addition, col_index):
     rows_a, cols_a = addition.shape
     for offset in prange(0, rows_a * cols_a):
         row, col = divmod(offset, cols_a)
-        target_col = col_index[col]
-        out[row, target_col] += addition[row, col]
+        rowi, coli = int(row), int(col)
+        target_col = col_index[coli]
+        out[rowi, target_col] += addition[rowi, coli]
 
 
 @njit(parallel=True)
@@ -434,8 +436,9 @@ def _fast_indexed_add_i_n(out, addition, row_index):
     rows_a, cols_a = addition.shape
     for offset in prange(rows_a * cols_a):
         row, col = divmod(offset, cols_a)
-        target_row = row_index[row]
-        out[target_row, col] += addition[row, col]
+        rowi, coli = int(row), int(col)
+        target_row = row_index[rowi]
+        out[target_row, coli] += addition[rowi, coli]
 
 
 @njit(parallel=True)
@@ -443,8 +446,9 @@ def _fast_indexed_add_i_i(out, addition, row_index, col_index):
     rows_a, cols_a = addition.shape
     for offset in prange(rows_a * cols_a):
         row, col = divmod(offset, cols_a)
-        target_row = row_index[row]
-        target_col = col_index[col]
-        out[target_row, target_col] += addition[row, col]
+        rowi, coli = int(row), int(col)
+        target_row = row_index[rowi]
+        target_col = col_index[coli]
+        out[target_row, target_col] += addition[rowi, coli]
 
 # endregion
