@@ -480,13 +480,27 @@ class ChoiceModel(object):
         if nested:
             hierarchy, levels, logsum_scales = self._flatten()
             raw_result, logsum = worker_nested_probabilities(utility_table, hierarchy, levels, logsum_scales)
+            result_frame = self._build_nested_stochastic_frame(raw_result)
         else:
             raw_result, logsum = worker_multinomial_probabilities(utility_table)
-
-        result_frame = DataFrame(raw_result, index=self.decision_units, columns=self.choices)
+            result_frame = DataFrame(raw_result, index=self.decision_units, columns=self.choices)
         logsum = Series(logsum, index=self.decision_units)
 
         return result_frame, logsum
+
+    def _build_nested_stochastic_frame(self, raw_result: ndarray) -> DataFrame:
+        max_level = self.depth
+        elemental_tuples = []
+        for node in self._all_children():
+            if node.is_parent: continue
+            elemental_tuples += node.nested_ids(max_level)
+
+        elemental_index = MultiIndex.from_tuples(elemental_tuples)
+        choice_index = self.choices
+        filter_array = choice_index.isin(elemental_index)
+
+        return DataFrame(raw_result[:, filter_array].copy(), index=self.decision_units,
+                         columns=choice_index[filter_array])
 
     # endregion
 
