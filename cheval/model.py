@@ -121,6 +121,17 @@ class ChoiceModel(object):
             return MultiIndex.from_tuples(node_ids, names=level_names)
 
     @property
+    def elemental_choices(self) -> Index:
+        """For a nested model, return the Index of 'elemental' choices without children that are available to be chosen."""
+        max_level = self.depth
+        elemental_tuples = []
+        for node in self._all_children():
+            if node.is_parent: continue
+            elemental_tuples += node.nested_ids(max_level)
+
+        return MultiIndex.from_tuples(elemental_tuples)
+
+    @property
     def depth(self) -> int:
         return max(c.max_level() for c in self._top_children.values())
 
@@ -490,13 +501,7 @@ class ChoiceModel(object):
         return result_frame, logsum
 
     def _build_nested_stochastic_frame(self, raw_result: ndarray) -> DataFrame:
-        max_level = self.depth
-        elemental_tuples = []
-        for node in self._all_children():
-            if node.is_parent: continue
-            elemental_tuples += node.nested_ids(max_level)
-
-        elemental_index = MultiIndex.from_tuples(elemental_tuples)
+        elemental_index = self.elemental_choices
         choice_index = self.choices
         filter_array = choice_index.isin(elemental_index)
 
