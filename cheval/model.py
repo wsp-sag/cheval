@@ -600,9 +600,9 @@ class ChoiceModel(object):
 
         return new
 
-    def copy_subset(self, subset_index: Index) -> 'ChoiceModel':
-        assert np.all(subset_index.isin(self.decision_units)), "Subset index contains extra entries"
-        mask = self.decision_units.isin(subset_index)
+    def copy_subset(self, mask: Series) -> 'ChoiceModel':
+        assert mask.index.equals(self.decision_units), "Mask Series must match decision units"
+        subset_index = self.decision_units[mask]
 
         new = ChoiceModel(precision=self.precision)
         new._max_level = self._max_level
