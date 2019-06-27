@@ -636,12 +636,12 @@ class ChoiceModel(object):
         row_indexer = None
         if not self.decision_units.equals(table.index):
             if not reindex_rows: raise KeyError("Partial utility table index must match model decision units when reindex_rows=False")
-            row_indexer = table.index.get_indexer(self.decision_units)
+            row_indexer = self.decision_units.get_indexer(table.index)
 
         col_indexer = None
         if not self.choices.equals(table.columns):
             if not reindex_columns: raise KeyError("Partial utility table columns must match model choices when reindex_columns=False")
-            col_indexer = table.columns.get_indexer(self.choices)
+            col_indexer = self.choices.get_indexer(table.columns)
 
         target_table = self._partial_utilities.values
         fast_indexed_add(target_table, table.values, row_indexer, col_indexer)
