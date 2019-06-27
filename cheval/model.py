@@ -15,7 +15,7 @@ from deprecated import deprecated
 from .api import AbstractSymbol, ExpressionGroup, ChoiceNode, NumberSymbol, VectorSymbol, TableSymbol, MatrixSymbol, ExpressionSubGroup
 from .exceptions import ModelNotReadyError
 from .core import (worker_nested_probabilities, worker_nested_sample, worker_multinomial_probabilities,
-                   worker_multinomial_sample, fast_indexed_add)
+                   worker_multinomial_sample, fast_indexed_add, UtilityBoundsError)
 from .parsing.constants import *
 
 
@@ -416,6 +416,11 @@ class ChoiceModel(object):
                     local_dict[substitution] = data
 
             self._kernel_eval(expr.transformed, local_dict, utilities, choice_mask, casting_rule=casting_rule)
+
+        nans = np.isnan(utilities)
+        n_nans = nans.sum()
+        if n_nans > 0:
+            raise UtilityBoundsError(f"Found {n_nans} cells in utility table with NaN")
 
         return DataFrame(utilities, index=row_index, columns=col_index)
 
