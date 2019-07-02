@@ -232,7 +232,6 @@ class ChoiceModel(object):
         """
         self._scope[name] = TableSymbol(self, name, orientation, mandatory_attributes, allow_links)
 
-    @deprecated(reason="Use ChoiceModel.add_partial_utilities() instead")
     def declare_matrix(self, name: str, orientation: int = 0, reindex_cols=True, reindex_rows=True):
         """
         Declares a matrix that fully or partially aligns with the rows or columns. This is useful when manual control
