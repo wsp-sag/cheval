@@ -19,10 +19,12 @@ if TYPE_CHECKING:
 
 class ChoiceNode(object):
 
-    def __init__(self, name: str, parent: 'ChoiceNode'=None, logsum_scale: float=1.0,
+    def __init__(self, root: 'ChoiceModel', name: str, parent: 'ChoiceNode'=None, logsum_scale: float=1.0,
                  level: int=0):
         assert '.' not in name, 'Choice node name cannot contain "."'
         assert 0.0 < logsum_scale <= 1.0, "Logsum scale must be in hte interval (0, 1], got %s" % logsum_scale
+
+        self._root: 'ChoiceModel' = root
 
         self._name: str = str(name)
         self._parent = parent
@@ -83,30 +85,23 @@ class ChoiceNode(object):
 
         return max_level
 
-    def _nested_id(self, max_level: int):
+    def nested_id(self, max_level: int):
         retval = ['.'] * max_level
         if self._parent is None:
             retval[0] = self._name
         else:
             cutoff = self._level + 1
-            retval[: cutoff] = self._parent._nested_id(max_level)[: cutoff]
+            retval[: cutoff] = self._parent.nested_id(max_level)[: cutoff]
             retval[cutoff - 2] = self.name
         return tuple(retval)
 
-    def nested_ids(self, max_level: int):
-        retval = [self._nested_id(max_level)]
-        for c in self._children.values():
-            retval += c.nested_ids(max_level)
-        return retval
-
     def add_choice(self, name: str, logsum_scale: float=1.0) -> 'ChoiceNode':
-        node = ChoiceNode(name, self, logsum_scale, self.level + 1)
+        node = self._root._create_node(name, logsum_scale, parent=self)
         self._children[name] = node
         return node
 
     def clear(self):
-        for c in self._children.values(): c.clear()
-        self._children.clear()
+        raise NotImplementedError()
 
 # endregion
 # region Expression containers

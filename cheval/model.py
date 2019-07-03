@@ -22,13 +22,24 @@ from .parsing.constants import *
 class ChoiceModel(object):
 
     def __init__(self, *, precision: int = 8):
+
+        # Tree data
         self._max_level: int = 0
-        self._top_children: Dict[str, ChoiceNode] = {}
+        self._all_nodes: Dict[str, ChoiceNode] = {}
+        self._top_nodes: Set[ChoiceNode] = set()
+
+        # Scope and expressions
         self._expressions: ExpressionGroup = ExpressionGroup()
         self._scope: Dict[str, AbstractSymbol] = {}
+
+        # Index objects
         self._decision_units: Index = None
+
+        # Cached items
         self._cached_cols: Index = None
         self._cached_utils: DataFrame = None
+
+        # Other
         self._precision: int = 0
         self.precision = precision
 
@@ -53,6 +64,22 @@ class ChoiceModel(object):
 
     # region Tree operations
 
+    def _create_node(self, name: str, logsum_scale: float, parent: ChoiceNode = None) -> ChoiceNode:
+        expected_namespace = name
+        if parent is None and name in self._all_nodes:
+            old_node = self._all_nodes.pop(name)  # Remove from model dictionary
+            self._top_nodes.remove(old_node)  # Remove from top-level choices
+        elif parent is not None:
+            expected_namespace = parent.full_name + '.' + name
+            if expected_namespace in self._all_nodes:
+                del self._all_nodes[expected_namespace]  # Remove from model dictionary
+
+        level = 1 if parent is None else (parent.level + 1)
+        node = ChoiceNode(self, name, parent=parent, logsum_scale=logsum_scale, level=level)
+        self._all_nodes[expected_namespace] = node
+
+        return node
+
     def add_choice(self, name: str, logsum_scale: float=1.0) -> ChoiceNode:
         """
         Create and add a new discrete choice to the model, at the top level. Returns a node object which can also add
@@ -72,8 +99,8 @@ class ChoiceModel(object):
         if self._cached_cols is not None: self._cached_cols = None
         if self._cached_utils is not None: self._cached_utils = None
 
-        node = ChoiceNode(name, logsum_scale=logsum_scale, level=1)
-        self._top_children[name] = node
+        node = self._create_node(name, logsum_scale)
+        self._top_nodes.add(node)
         return node
 
     def add_choices(self, names: Iterable[str], logsum_scales: Iterable[float]=None
@@ -97,9 +124,9 @@ class ChoiceModel(object):
             logsum_scales = [1.0 for _ in names]
         retval = {}
         for name, logsum_scale in zip(names, logsum_scales):
-            node = ChoiceNode(name, logsum_scale=logsum_scale, level=1)
+            node = self._create_node(name, logsum_scale)
             retval[name] = node
-            self._top_children[name] = node
+            self._top_nodes.add(node)
         return retval
 
     @property
@@ -111,14 +138,14 @@ class ChoiceModel(object):
         max_level = self.depth
 
         if max_level == 1:
-            return Index(sorted(self._top_children.keys()))
+            return Index(self._all_nodes.keys())
         else:
-            node_ids = self._nested_tuples(max_level)
+            nested_tuples = [node.nested_id(max_level) for node in self._all_nodes.values()]
 
             level_names = ['root']
             for i in range(1, max_level): level_names.append(f'nest_{i + 1}')
 
-            return MultiIndex.from_tuples(node_ids, names=level_names)
+            return MultiIndex.from_tuples(nested_tuples, names=level_names)
 
     @property
     def elemental_choices(self) -> Index:
@@ -128,48 +155,34 @@ class ChoiceModel(object):
         if max_level == 1: return self.choices
 
         elemental_tuples = []
-        for node in self._all_children():
+        for node in self._all_nodes.values():
             if node.is_parent: continue
-            elemental_tuples += node.nested_ids(max_level)
+            elemental_tuples.append(node.nested_id(max_level))
 
         return MultiIndex.from_tuples(elemental_tuples)
 
     @property
     def depth(self) -> int:
-        return max(c.max_level() for c in self._top_children.values())
-
-    def _nested_tuples(self, max_level):
-        node_ids = []
-        for c in self._top_children.values():
-            node_ids += c.nested_ids(max_level)
-
-        return node_ids
-
-    def _all_children(self) -> Iterator[ChoiceNode]:
-        q = deque()
-        for c in self._top_children.values(): q.append(c)
-        while len(q) > 0:
-            c = q.popleft()
-            yield c
-            for c2 in c.children(): q.append(c2)
+        return max(node.level for node in self._all_nodes.values())
 
     def _flatten(self) -> Tuple[ndarray, ndarray, ndarray]:
         """Converts nested structure to arrays for Numba-based processing"""
         max_level = self.depth
         assert max_level > 1
-        node_ids = self._nested_tuples(max_level)
-        node_positions = {name: i for i, name in enumerate(node_ids)}
+        n_nodes = len(self._all_nodes)
 
-        hierarchy = np.full(len(node_ids), -1, dtype='i8')
-        levels = np.zeros(len(node_ids), dtype='i8')
-        logsum_scales = np.ones(len(node_ids), dtype='f8')
+        hierarchy = np.full(n_nodes, -1, dtype='i8')
+        levels = np.zeros(n_nodes, dtype='i8')
+        logsum_scales = np.ones(n_nodes, dtype='f8')
 
-        for node in self._all_children():
-            position = node_positions[node._nested_id(max_level)]
+        node_positions = {node.full_name: i for i, node in enumerate(self._all_nodes.values())}
+
+        for node in self._all_nodes.values():
+            position = node_positions[node.full_name]
             levels[position] = node.level - 1  # Internal levels start at 1.
 
             if node.parent is not None:
-                parent_position = node_positions[node.parent._nested_id(max_level)]
+                parent_position = node_positions[node.parent.full_name]
                 hierarchy[position] = parent_position
 
             if node.is_parent:
@@ -288,8 +301,8 @@ class ChoiceModel(object):
             if not condition: raise ModelNotReadyError(message)
 
         if tree:
-            assert_valid(len(self._top_children) >= 2, "At least two or more choices must be defined")
-            for c in self._all_children():
+            assert_valid(len(self._top_nodes) >= 2, "At least two or more choices must be defined")
+            for c in self._all_nodes.values():
                 n_children = c.n_children
                 assert_valid(n_children != 1, f"Nested choice '{c.full_name}' cannot have exactly one child node")
 
@@ -579,8 +592,10 @@ class ChoiceModel(object):
 
         new = ChoiceModel(precision=self.precision)
         new._max_level = self._max_level
-        new._top_children = self._top_children.copy()  # ChoiceNode refs will be the same, but that's ok because users
-        # shouldn't be changing these at this point
+
+        # ChoiceNode refs will be the same, but that's ok because users shouldn't be changing these at this point
+        new._top_nodes = self._top_nodes.copy()
+        new._all_nodes = self._all_nodes.copy()
         new._cached_cols = self._cached_cols
 
         # Force the DU to be copied if the assigned scope is also being copied
@@ -610,8 +625,11 @@ class ChoiceModel(object):
 
         new = ChoiceModel(precision=self.precision)
         new._max_level = self._max_level
-        new._top_children = self._top_children.copy()  # ChoiceNode refs will be the same, but that's ok because users
-        # shouldn't be changing these at this point
+
+        # ChoiceNode refs will be the same, but that's ok because users shouldn't be changing these at this point
+        new._top_nodes = self._top_nodes.copy()
+        new._all_nodes = self._all_nodes.copy()
+
         new._cached_cols = self._cached_cols
 
         new.decision_units = subset_index
