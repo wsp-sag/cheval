@@ -321,7 +321,7 @@ class ChoiceModel(object):
 
     def run_discrete(self, *, random_seed: int = None, n_draws: int = 1,
                      astype: Union[str, np.dtype] = 'category', squeeze: bool = True, n_threads: int = 1,
-                     clear_scope: bool = True, result_name: str = None, logger: Logger = None
+                     clear_scope: bool = True, result_name: str = None, logger: Logger = None, scale_utilities=True
                      ) -> Tuple[Union[DataFrame, Series], Series]:
         """
         For each decision unit, discretely sample one or more times (with replacement) from the probability
@@ -341,6 +341,9 @@ class ChoiceModel(object):
                 utility computation will be released, freeing up memory. Turning this off is of limited use.
             result_name: Name for the result Series or name of the columns of the result DataFrame. Purely aesthetic.
             logger: Optional Logger instance which reports expressions being evaluated
+            scale_utilities: For a nested model, if True then lower-level utilities will be divided by the logsum scale
+                of the parent nest. If False, no scaling is performed. This is entirely dependant on the reported form
+                of estimated model parameters.
 
         Returns:
             Tuple[DataFrame or Series, Series]: The first item returned is always the results of the model evaluation,
@@ -365,7 +368,7 @@ class ChoiceModel(object):
         if nested:
             hierarchy, levels, logsum_scales = self._flatten()
             raw_result, logsum = worker_nested_sample(utility_table, hierarchy, levels, logsum_scales, n_draws,
-                                                      random_seed)
+                                                      random_seed, scale_utilities=scale_utilities)
         else:
             raw_result, logsum = worker_multinomial_sample(utility_table, n_draws, random_seed)
 
@@ -478,7 +481,7 @@ class ChoiceModel(object):
         return retval
 
     def run_stochastic(self, n_threads: int = 1, clear_scope: bool = True, logger: Logger = None,
-                       group: str = None) -> Tuple[DataFrame, Series]:
+                       group: str = None, scale_utilities=True) -> Tuple[DataFrame, Series]:
         """
         For each record, compute the probability distribution of the logit model. A DataFrame will be returned whose
         columns match the sorted list of node names (alternatives) in the model. Probabilities over all alternatives for
@@ -490,6 +493,9 @@ class ChoiceModel(object):
                 utility computation will be released, freeing up memory. Turning this off is of limited use.
             logger: Optional Logger instance which reports expressions being evaluated
             group:
+            scale_utilities: For a nested model, if True then lower-level utilities will be divided by the logsum scale
+                of the parent nest. If False, no scaling is performed. This is entirely dependant on the reported form
+                of estimated model parameters.
 
         Returns:
             Tuple[DataFrame, Series]: The first item returned is always the results of the model evaluation,
@@ -511,7 +517,8 @@ class ChoiceModel(object):
         nested = self.depth > 1
         if nested:
             hierarchy, levels, logsum_scales = self._flatten()
-            raw_result, logsum = worker_nested_probabilities(utility_table, hierarchy, levels, logsum_scales)
+            raw_result, logsum = worker_nested_probabilities(utility_table, hierarchy, levels, logsum_scales,
+                                                             scale_utilities=scale_utilities)
             result_frame = self._build_nested_stochastic_frame(raw_result)
         else:
             raw_result, logsum = worker_multinomial_probabilities(utility_table)
