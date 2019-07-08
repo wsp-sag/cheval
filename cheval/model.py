@@ -403,13 +403,11 @@ class ChoiceModel(object):
             raise ModelNotReadyError("Decision units must be set before evaluating utility expressions")
         if n_threads is None:
             n_threads = cpu_count()
-        if logger is not None: logger.debug("Allocating utility table")
         row_index = self._decision_units
         col_index = self.choices
 
         utilities = self._partial_utilities.values
 
-        if logger is not None: logger.debug("Building shared locals")
         # Prepare locals, including scalar, vector, and matrix variables that don't need any further processing.
         shared_locals = {NAN_STR: np.nan, OUT_STR: utilities, NEG_INF_STR: NEG_INF_VAL}
         for name in expressions.itersimple():
