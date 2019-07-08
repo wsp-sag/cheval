@@ -211,8 +211,15 @@ class ChoiceModel(object):
         else:
             self._decision_units = Index(item)
 
+    @staticmethod
+    def _check_symbol_name(name: str):
+        # TODO: Check function names from NumExpr
+        if name in RESERVED_WORDS:
+            raise SyntaxError(f"Symbol name '{name}' cannot be used as it is a reserved keyword.")
+
     def declare_number(self, name: str):
         """Declares a simple scalar variable, of number or text type"""
+        self._check_symbol_name(name)
         symbol = NumberSymbol(self, name)
         self._scope[name] = symbol
 
@@ -226,6 +233,7 @@ class ChoiceModel(object):
             orientation: 0 if oriented to the decision units/rows, 1 if oriented to the choices/columns
 
         """
+        self._check_symbol_name(name)
         self._scope[name] = VectorSymbol(self, name, orientation)
 
     def declare_table(self, name: str, orientation: int, mandatory_attributes: Set[str]=None,
@@ -243,6 +251,7 @@ class ChoiceModel(object):
             allow_links:
 
         """
+        self._check_symbol_name(name)
         self._scope[name] = TableSymbol(self, name, orientation, mandatory_attributes, allow_links)
 
     def declare_matrix(self, name: str, orientation: int = 0, reindex_cols=True, reindex_rows=True):
@@ -257,6 +266,7 @@ class ChoiceModel(object):
             reindex_rows:
 
         """
+        self._check_symbol_name(name)
         self._scope[name] = MatrixSymbol(self, name, orientation, reindex_cols, reindex_rows)
 
     def __getitem__(self, item) -> AbstractSymbol:
