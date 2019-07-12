@@ -21,7 +21,7 @@ from .parsing.constants import *
 
 class ChoiceModel(object):
 
-    def __init__(self, *, precision: int = 8):
+    def __init__(self, *, precision: int = 8, debug_id=None):
 
         # Tree data
         self._max_level: int = 0
@@ -42,6 +42,9 @@ class ChoiceModel(object):
         # Other
         self._precision: int = 0
         self.precision = precision
+        
+        self.debug_id = debug_id  # note that debug_id needs to be a valid label that can used to search a Pandas index
+        self.debug_results: DataFrame = None
 
     @property
     def precision(self) -> int: return self._precision
@@ -408,6 +411,12 @@ class ChoiceModel(object):
         row_index = self._decision_units
         col_index = self.choices
 
+        # if debug, get index location of corresponding id
+        if self.debug_id:
+            debug_label = row_index.get_loc(self.debug_id)
+            debug_expr = []
+            debug_results = []
+
         utilities = self._partial_utilities.values
 
         # Prepare locals, including scalar, vector, and matrix variables that don't need any further processing.
@@ -423,7 +432,6 @@ class ChoiceModel(object):
         for expr in expressions:
             if logger is not None: logger.debug(f"Evaluating expression '{expr.raw}'")
             # TODO: Add error handling
-            # TODO: Add support for watching particular rows and logging the results
 
             choice_mask = self._make_column_mask(expr.filter_)
 
@@ -442,10 +450,18 @@ class ChoiceModel(object):
 
             self._kernel_eval(expr.transformed, local_dict, utilities, choice_mask, casting_rule=casting_rule)
 
+            # save each expression and values for a specific od pair
+            if self.debug_id:
+                debug_expr.append(expr.raw)
+                debug_results.append(utilities[debug_label].copy())
+
         nans = np.isnan(utilities)
         n_nans = nans.sum()
         if n_nans > 0:
             raise UtilityBoundsError(f"Found {n_nans} cells in utility table with NaN")
+
+        if self.debug_id:
+            self.debug_results = DataFrame(debug_results, index=debug_expr, columns=col_index)  # expressions.tolist() doesn't work...
 
         return DataFrame(utilities, index=row_index, columns=col_index)
 
@@ -640,7 +656,7 @@ class ChoiceModel(object):
         assert mask.index.equals(self.decision_units), "Mask Series must match decision units"
         subset_index = self.decision_units[mask]
 
-        new = ChoiceModel(precision=self.precision)
+        new = ChoiceModel(precision=self.precision, debug_id=self.debug_id)
         new._max_level = self._max_level
 
         # ChoiceNode refs will be the same, but that's ok because users shouldn't be changing these at this point
