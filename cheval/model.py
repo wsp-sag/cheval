@@ -325,7 +325,7 @@ class ChoiceModel(object):
         symbols_to_check = list(expr_container.itersimple()) + list(expr_container.iterchained())
 
         for name in symbols_to_check:
-            if name == NEG_INF_STR: continue  # This gets added in manually later.
+            if name in RESERVED_WORDS: continue # These gets added in manually later.
             assert_valid(name in self._scope, f"Symbol '{name}' used in expressions but has not been declared")
             if assignment: assert_valid(self._scope[name].filled, f"Symbol '{name}' is declared but never assigned")
 
