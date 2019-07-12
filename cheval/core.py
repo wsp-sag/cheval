@@ -93,7 +93,7 @@ def generate_rand_floats_for_parallel(seed: int, n: int) -> ndarray:
 
 
 @njit(nlong[:](ndouble[:], nlong, nlong, maybe(nlong[:])), nogil=True)
-def sample_multi(p_array: ndarray, n: int, random_seed: int, out_array: ndarray=None) -> ndarray:
+def sample_multi(p_array: ndarray, n: int, random_seed: int, out_array: ndarray = None) -> ndarray:
     np.random.seed(random_seed)
 
     nbf_cumsum(p_array)
@@ -141,10 +141,13 @@ def multinomial_probabilities(utilities: ndarray) -> Tuple[ndarray, float]:
 
 
 @njit([
-    NTuple((ndouble[:], ndouble))(ndouble[:], nlong[:], nlong[:], ndouble[:], nbool),
-    NTuple((ndouble[:], ndouble))(nfloat[:], nlong[:], nlong[:], ndouble[:], nbool)
+    NTuple((ndouble[:], ndouble))(ndouble[:], nlong[:], nlong[:], ndouble[:], nbool[:], nbool),
+    NTuple((ndouble[:], ndouble))(nfloat[:], nlong[:], nlong[:], ndouble[:], nbool[:], nbool)
 ], nogil=True)
-def nested_probabilities(utilities: ndarray, hierarchy, levels, logsum_scales, scale_utilities=True) -> Tuple[ndarray, float]:
+def nested_probabilities(utilities: ndarray, hierarchy, levels, logsum_scales, bottom_flags, scale_utilities=True
+                         ) -> Tuple[ndarray, float]:
+    """Probability evaluation of a nested logit model, without needing a tree structure or any recursion."""
+
     n_cells = len(utilities)
     probabilities = utilities.astype(np.float64)
     top_logsum = 0
@@ -157,28 +160,37 @@ def nested_probabilities(utilities: ndarray, hierarchy, levels, logsum_scales, s
         # Go through levels in reverse order (e.g. starting at the bottom)
         for index, level in enumerate(levels):
             if level != current_level: continue  # This is still faster than using np.where()
-            parent = hierarchy[index]
 
-            existing_logsum = logsums[index]
+            parent = hierarchy[index]
             parent_ls_scale = 1.0 if not scale_utilities or parent < 0 else logsum_scales[parent]
-            if existing_logsum != 0:
-                current_ls_scale = logsum_scales[index]
-                expu = np.exp((probabilities[index] + current_ls_scale * np.log(existing_logsum)) / parent_ls_scale)
-            else:
+            is_bottom = bottom_flags[index]
+
+            if is_bottom:
+                # If this node is at the bottom of the tree, no need to lookup the previously-stored logsum
                 expu = np.exp(probabilities[index] / parent_ls_scale)
+            else:
+                existing_logsum = logsums[index]
+                current_ls_scale = logsum_scales[index]
+
+                # Note: It is deliberate to take the log of 0 in some cases. This can occur when all children in a nest
+                # exponentiate to 0 (e.g. have very low utility, usually deliberately to disable some choices). The
+                # function np.log() evaluates to -inf, which is exactly what we want it to be: the upper choice should
+                # also get disabled.
+                expu = np.exp((probabilities[index] + current_ls_scale * np.log(existing_logsum)) / parent_ls_scale)
+
             if parent >= 0: logsums[parent] += expu
             else: top_logsum += expu
             probabilities[index] = expu
         current_level -= 1
 
+    if top_logsum <= 0:
+        raise UtilityBoundsError("Nested logit top-level logsum is 0.0")
+
     # Step 2: Use logsums to compute conditional probabilities
     for index, parent in enumerate(hierarchy):
-        if parent == -1:
-            if top_logsum <= 0:
-                raise UtilityBoundsError("Nested logit top-level logsum is 0.0")
-            ls = top_logsum
-        else:
-            ls = logsums[parent]
+        ls = top_logsum if parent == -1 else logsums[parent]
+
+        # Logsums of 0 can happen sometimes when all choices in a nest are -inf, so just fix the probabilities to 0
         p = 0.0 if ls <= 0 else probabilities[index] / ls
         probabilities[index] = p
 
@@ -210,7 +222,7 @@ def simple_sample(weights: ndarray, r: float) -> int:
 
 
 @njit(nlong[:](ndouble[:], nlong, nlong, maybe(nlong[:])), nogil=True)
-def simple_multisample(weights: ndarray, n: int, seed: int, out: ndarray=None) -> ndarray:
+def simple_multisample(weights: ndarray, n: int, seed: int, out: ndarray = None) -> ndarray:
     """Samples multiple times from an array of weights, based on a random seed. Thread-safe."""
     p_array = simple_probabilities(weights)
     return sample_multi(p_array, n, seed, out)
@@ -230,28 +242,31 @@ def multinomial_sample(utilities: ndarray, r: float) -> Tuple[int, float]:
     NTuple((nlong[:], ndouble))(ndouble[:], nlong, nlong, maybe(nlong[:])),
     NTuple((nlong[:], ndouble))(nfloat[:], nlong, nlong, maybe(nlong[:]))
 ], nogil=True)
-def multinomial_multisample(utilities: ndarray, n: int, seed: int, out: ndarray=None) -> Tuple[np.ndarray, float]:
+def multinomial_multisample(utilities: ndarray, n: int, seed: int, out: ndarray = None) -> Tuple[np.ndarray, float]:
     """Samples multiple times from an array of multinomial logit utilities, based on a random seed. Thread-safe."""
     p_array, ls = multinomial_probabilities(utilities)
     return sample_multi(p_array, n, seed, out), ls
 
 
 @njit([
-    NTuple((nlong, ndouble))(ndouble[:], ndouble, nlong[:], nlong[:], ndouble[:], nbool),
-    NTuple((nlong, ndouble))(nfloat[:], ndouble, nlong[:], nlong[:], ndouble[:], nbool)
+    NTuple((nlong, ndouble))(ndouble[:], ndouble, nlong[:], nlong[:], ndouble[:], nbool[:], nbool),
+    NTuple((nlong, ndouble))(nfloat[:], ndouble, nlong[:], nlong[:], ndouble[:], nbool[:], nbool)
 ], nogil=True)
-def nested_sample(utilities: ndarray, r: float, parents, levels, ls_scales, scale_utilities=True) -> Tuple[int, float]:
-    p_array, ls = nested_probabilities(utilities, parents, levels, ls_scales, scale_utilities=scale_utilities)
+def nested_sample(utilities: ndarray, r: float, parents, levels, ls_scales, bottom_flags, scale_utilities=True
+                  ) -> Tuple[int, float]:
+    p_array, ls = nested_probabilities(utilities, parents, levels, ls_scales, bottom_flags,
+                                       scale_utilities=scale_utilities)
     return sample_once(p_array, r), ls
 
 
 @njit([
-    NTuple((nlong[:], ndouble))(ndouble[:], nlong[:], nlong[:], ndouble[:], nlong, nlong, maybe(nlong[:]), nbool),
-    NTuple((nlong[:], ndouble))(nfloat[:], nlong[:], nlong[:], ndouble[:], nlong, nlong, maybe(nlong[:]), nbool)
+    NTuple((nlong[:], ndouble))(ndouble[:], nlong[:], nlong[:], ndouble[:], nbool[:], nlong, nlong, maybe(nlong[:]), nbool),
+    NTuple((nlong[:], ndouble))(nfloat[:], nlong[:], nlong[:], ndouble[:], nbool[:], nlong, nlong, maybe(nlong[:]), nbool)
 ], nogil=True)
-def nested_multisample(utilities: ndarray, parents, levels, ls_scales, n: int, seed: int, out: ndarray = None,
-                       scale_utilities=True) -> Tuple[ndarray, float]:
-    p_array, ls = nested_probabilities(utilities, parents, levels, ls_scales, scale_utilities=scale_utilities)
+def nested_multisample(utilities: ndarray, parents, levels, ls_scales, bottom_flags, n: int, seed: int,
+                       out: ndarray = None, scale_utilities=True) -> Tuple[ndarray, float]:
+    p_array, ls = nested_probabilities(utilities, parents, levels, ls_scales, bottom_flags,
+                                       scale_utilities=scale_utilities)
     return sample_multi(p_array, n, seed, out), ls
 
 
@@ -326,11 +341,11 @@ def worker_multinomial_probabilities(utilities: ndarray) -> Tuple[ndarray, ndarr
 
 
 @njit([
-    NTuple((nlong[:, :], ndouble[:]))(ndouble[:, :], nlong[:], nlong[:], ndouble[:], nlong, nlong, nbool),
-    NTuple((nlong[:, :], ndouble[:]))(nfloat[:, :], nlong[:], nlong[:], ndouble[:], nlong, nlong, nbool)
+    NTuple((nlong[:, :], ndouble[:]))(ndouble[:, :], nlong[:], nlong[:], ndouble[:], nbool[:], nlong, nlong, nbool),
+    NTuple((nlong[:, :], ndouble[:]))(nfloat[:, :], nlong[:], nlong[:], ndouble[:], nbool[:], nlong, nlong, nbool)
 ], parallel=True, nogil=True)
-def worker_nested_sample(utilities: ndarray, parents, levels, ls_scales, n: int, seed: int, scale_utilities=True
-                         ) -> Tuple[ndarray, ndarray]:
+def worker_nested_sample(utilities: ndarray, parents, levels, ls_scales, bottom_flags, n: int, seed: int,
+                         scale_utilities=True) -> Tuple[ndarray, ndarray]:
     n_rows = len(utilities)
     result = np.zeros((n_rows, n), dtype=np.int64)
     ls_array = np.zeros(n_rows, dtype=np.float64)
@@ -341,7 +356,8 @@ def worker_nested_sample(utilities: ndarray, parents, levels, ls_scales, n: int,
         for i in prange(n_rows):
             utility_row = utilities[i, :]
             r = r_array[i]
-            this_result, ls = nested_sample(utility_row, r, parents, levels, ls_scales, scale_utilities=scale_utilities)
+            this_result, ls = nested_sample(utility_row, r, parents, levels, ls_scales, bottom_flags,
+                                            scale_utilities=scale_utilities)
             result[i, 0] = this_result
             ls_array[i] = ls
     else:
@@ -349,17 +365,17 @@ def worker_nested_sample(utilities: ndarray, parents, levels, ls_scales, n: int,
         for i in prange(n_rows):
             utility_row = utilities[i, :]
             seed_i = seed_array[i]
-            _, ls = nested_multisample(utility_row, parents, levels, ls_scales, n, seed_i, result[i, :],
+            _, ls = nested_multisample(utility_row, parents, levels, ls_scales, bottom_flags, n, seed_i, result[i, :],
                                        scale_utilities=scale_utilities)
             ls_array[i] = ls
     return result, ls_array
 
 
 @njit([
-    NTuple((ndouble[:, :], ndouble[:]))(ndouble[:, :], nlong[:], nlong[:], ndouble[:], nbool),
-    NTuple((ndouble[:, :], ndouble[:]))(nfloat[:, :], nlong[:], nlong[:], ndouble[:], nbool)
+    NTuple((ndouble[:, :], ndouble[:]))(ndouble[:, :], nlong[:], nlong[:], ndouble[:], nbool[:], nbool),
+    NTuple((ndouble[:, :], ndouble[:]))(nfloat[:, :], nlong[:], nlong[:], ndouble[:], nbool[:], nbool)
 ], parallel=True, nogil=True)
-def worker_nested_probabilities(utilities: ndarray, parents, levels, ls_scales, scale_utilities=True
+def worker_nested_probabilities(utilities: ndarray, parents, levels, ls_scales, bottom_flags, scale_utilities=True
                                 ) -> Tuple[ndarray, ndarray]:
     n_rows, n_cols = utilities.shape
     result = np.zeros((n_rows, n_cols), dtype=np.float64)
@@ -367,7 +383,8 @@ def worker_nested_probabilities(utilities: ndarray, parents, levels, ls_scales, 
 
     for i in prange(n_rows):
         utility_row = utilities[i, :]
-        p_array, ls = nested_probabilities(utility_row, parents, levels, ls_scales, scale_utilities=scale_utilities)
+        p_array, ls = nested_probabilities(utility_row, parents, levels, ls_scales, bottom_flags,
+                                           scale_utilities=scale_utilities)
         result[i, :] = p_array
         ls_array[i] = ls
 

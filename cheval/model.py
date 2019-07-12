@@ -165,7 +165,7 @@ class ChoiceModel(object):
     def depth(self) -> int:
         return max(node.level for node in self._all_nodes.values())
 
-    def _flatten(self) -> Tuple[ndarray, ndarray, ndarray]:
+    def _flatten(self) -> Tuple[ndarray, ndarray, ndarray, ndarray]:
         """Converts nested structure to arrays for Numba-based processing"""
         max_level = self.depth
         assert max_level > 1
@@ -174,6 +174,7 @@ class ChoiceModel(object):
         hierarchy = np.full(n_nodes, -1, dtype='i8')
         levels = np.zeros(n_nodes, dtype='i8')
         logsum_scales = np.ones(n_nodes, dtype='f8')
+        bottom_flags = np.full(n_nodes, True, dtype='?')
 
         node_positions = {node.full_name: i for i, node in enumerate(self._all_nodes.values())}
 
@@ -187,8 +188,9 @@ class ChoiceModel(object):
 
             if node.is_parent:
                 logsum_scales[position] = node.logsum_scale
+                bottom_flags[position] = False
 
-        return hierarchy, levels, logsum_scales
+        return hierarchy, levels, logsum_scales, bottom_flags
 
     # endregion
     # region Expressions and scope operations
@@ -376,9 +378,9 @@ class ChoiceModel(object):
         nb.config.NUMBA_NUM_THREADS = n_threads  # Set the number of threads for parallel execution
         nested = self.depth > 1
         if nested:
-            hierarchy, levels, logsum_scales = self._flatten()
-            raw_result, logsum = worker_nested_sample(utility_table, hierarchy, levels, logsum_scales, n_draws,
-                                                      random_seed, scale_utilities=scale_utilities)
+            hierarchy, levels, logsum_scales, bottom_flags = self._flatten()
+            raw_result, logsum = worker_nested_sample(utility_table, hierarchy, levels, logsum_scales, bottom_flags,
+                                                      n_draws, random_seed, scale_utilities=scale_utilities)
         else:
             raw_result, logsum = worker_multinomial_sample(utility_table, n_draws, random_seed)
 
@@ -524,9 +526,9 @@ class ChoiceModel(object):
         nb.config.NUMBA_NUM_THREADS = n_threads  # Set the number of threads for parallel execution
         nested = self.depth > 1
         if nested:
-            hierarchy, levels, logsum_scales = self._flatten()
+            hierarchy, levels, logsum_scales, bottom_flags = self._flatten()
             raw_result, logsum = worker_nested_probabilities(utility_table, hierarchy, levels, logsum_scales,
-                                                             scale_utilities=scale_utilities)
+                                                             bottom_flags, scale_utilities=scale_utilities)
             result_frame = self._build_nested_stochastic_frame(raw_result)
         else:
             raw_result, logsum = worker_multinomial_probabilities(utility_table)
