@@ -1,5 +1,5 @@
 """Collection of pure-Numba functions for sampling & probability computation"""
-from typing import Union, Tuple
+from typing import Tuple
 import numpy as np
 from numpy import ndarray
 from numba import prange, njit, float64 as ndouble, int64 as nlong, void, float32 as nfloat, boolean as nbool
@@ -94,6 +94,7 @@ def generate_rand_floats_for_parallel(seed: int, n: int) -> ndarray:
 
 @njit(nlong[:](ndouble[:], nlong, nlong, maybe(nlong[:])), nogil=True)
 def sample_multi(p_array: ndarray, n: int, random_seed: int, out_array: ndarray = None) -> ndarray:
+    """Sample from a probability distribution multiple times using binary search"""
     np.random.seed(random_seed)
 
     nbf_cumsum(p_array)
@@ -122,6 +123,7 @@ def simple_probabilities(weights: ndarray) -> ndarray:
     NTuple((ndouble[:], ndouble))(ndouble[:]), NTuple((ndouble[:], ndouble))(nfloat[:])
 ], nogil=True)
 def multinomial_probabilities(utilities: ndarray) -> Tuple[ndarray, float]:
+    """Computes probabilities given a multinomial logit model formulation."""
     n_cols = len(utilities)
     p = np.zeros(n_cols, dtype=np.float64)  # Return value
 
@@ -254,6 +256,7 @@ def multinomial_multisample(utilities: ndarray, n: int, seed: int, out: ndarray 
 ], nogil=True)
 def nested_sample(utilities: ndarray, r: float, parents, levels, ls_scales, bottom_flags, scale_utilities=True
                   ) -> Tuple[int, float]:
+    """Samples once from an array of nested logit utilities, from an existing random draw"""
     p_array, ls = nested_probabilities(utilities, parents, levels, ls_scales, bottom_flags,
                                        scale_utilities=scale_utilities)
     return sample_once(p_array, r), ls
@@ -265,6 +268,7 @@ def nested_sample(utilities: ndarray, r: float, parents, levels, ls_scales, bott
 ], nogil=True)
 def nested_multisample(utilities: ndarray, parents, levels, ls_scales, bottom_flags, n: int, seed: int,
                        out: ndarray = None, scale_utilities=True) -> Tuple[ndarray, float]:
+    """Samples multiple times from an array of nested logit utilities, based on a random seed. Thread-safe."""
     p_array, ls = nested_probabilities(utilities, parents, levels, ls_scales, bottom_flags,
                                        scale_utilities=scale_utilities)
     return sample_multi(p_array, n, seed, out), ls
@@ -301,6 +305,7 @@ def worker_weighted_sample(weights: ndarray, n: int, seed: int) -> ndarray:
     NTuple((nlong[:, :], ndouble[:]))(nfloat[:, :], nlong, nlong)
 ], parallel=True, nogil=True)
 def worker_multinomial_sample(utilities: ndarray, n: int, seed: int) -> Tuple[ndarray, ndarray]:
+    """Runs multinomial_sample or multinomial_multisample in parallel."""
     n_rows = utilities.shape[0]
     result = np.zeros((n_rows, n), dtype=np.int64)
     ls_array = np.zeros(n_rows, dtype=np.float64)
@@ -327,6 +332,7 @@ def worker_multinomial_sample(utilities: ndarray, n: int, seed: int) -> Tuple[nd
     NTuple((ndouble[:, :], ndouble[:]))(nfloat[:, :])
 ], parallel=True, nogil=True)
 def worker_multinomial_probabilities(utilities: ndarray) -> Tuple[ndarray, ndarray]:
+    """Runs multinomial_probabilities in parallel"""
     n_rows, n_cols = utilities.shape
     result = np.zeros((n_rows, n_cols), dtype=np.float64)
     ls_array = np.zeros(n_rows, dtype=np.float64)
@@ -346,6 +352,7 @@ def worker_multinomial_probabilities(utilities: ndarray) -> Tuple[ndarray, ndarr
 ], parallel=True, nogil=True)
 def worker_nested_sample(utilities: ndarray, parents, levels, ls_scales, bottom_flags, n: int, seed: int,
                          scale_utilities=True) -> Tuple[ndarray, ndarray]:
+    """Runs nested_sample or nested_multisample in parallel."""
     n_rows = len(utilities)
     result = np.zeros((n_rows, n), dtype=np.int64)
     ls_array = np.zeros(n_rows, dtype=np.float64)
@@ -377,6 +384,7 @@ def worker_nested_sample(utilities: ndarray, parents, levels, ls_scales, bottom_
 ], parallel=True, nogil=True)
 def worker_nested_probabilities(utilities: ndarray, parents, levels, ls_scales, bottom_flags, scale_utilities=True
                                 ) -> Tuple[ndarray, ndarray]:
+    """Runs nested_probabilities in parallel"""
     n_rows, n_cols = utilities.shape
     result = np.zeros((n_rows, n_cols), dtype=np.float64)
     ls_array = np.zeros(n_rows, dtype=np.float64)
@@ -396,16 +404,7 @@ def worker_nested_probabilities(utilities: ndarray, parents, levels, ls_scales, 
 # region Misc functions
 
 def fast_indexed_add(out: ndarray, addition: ndarray, row_index: ndarray = None, col_index: ndarray = None):
-    """
-    Parallel "a += b" function for large matrices. Also allows "a[:, indexer] += b" for partial tables.
-
-    Args:
-        out:
-        addition:
-        row_index:
-        col_index:
-
-    """
+    """Parallel "a += b" function for large matrices. Also allows "a[:, indexer] += b" for partial tables."""
     rows_a, cols_a = addition.shape
     rows_o, cols_o = out.shape
 
