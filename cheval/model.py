@@ -643,7 +643,7 @@ class ChoiceModel(object):
 
         """
 
-        new = ChoiceModel(precision=self.precision)
+        new = ChoiceModel(precision=self.precision, debug_id=self.debug_id)
         new._max_level = self._max_level
 
         # ChoiceNode refs will be the same, but that's ok because users shouldn't be changing these at this point
