@@ -70,8 +70,8 @@ accepts [the same arguments](http://pandas.pydata.org/pandas-docs/stable/generat
 For example, to convert a DataFrame to a LinkedDataFrame, write:
 
 ```python
-from pandas import *
-from balsa import LinkedDataFrame
+from pandas import DataFrame
+from cheval import LinkedDataFrame
 
 ...
 df: DataFrame
@@ -88,6 +88,8 @@ e.g. `LinkedDataFrame().read_csv` accepts the same arguments as
 The following methods are explicitly wrapped:
 
 ```python
+from cheval import LinkedDataFrame
+
 LinkedDataFrame.read_csv(*args, **kwargs) -> LinkedDataFrame
 
 LinkedDataFrame.read_table(*args, **kwargs) -> LinkedDataFrame
