@@ -424,15 +424,15 @@ class MatrixSymbol(AbstractSymbol):
                 matrix = np.empty([len(rows), len(cols)], dtype=data.values.dtype)
                 if not cols_match:
                     assert self._reindex_cols
-                    col_indexer = data.columns.get_indexer(cols)
-                    col_indexer = col_indexer[col_indexer != -1]
+                    col_indexer = cols.get_indexer(data.columns)
+                    if np.any(col_indexer < 0): raise NotImplementedError("Cannot handle missing columns")
                     assert len(col_indexer) == data.shape[1]
                 else: col_indexer = slice(None)
 
                 if not rows_match:
                     assert self._reindex_rows
-                    row_indexer = data.index.get_indexer(rows)
-                    row_indexer = row_indexer[row_indexer != -1]
+                    row_indexer = rows.get_indexer(data.index)
+                    if np.any(row_indexer < 0): raise NotImplementedError("Cannot handle missing rows")
                     assert len(row_indexer) == data.shape[0]
                 else: row_indexer = slice(None)
 
