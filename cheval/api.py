@@ -311,7 +311,7 @@ class VectorSymbol(AbstractSymbol):
     def copy(self, new_parent: 'ChoiceModel', copy_data, row_mask):
         new = VectorSymbol(new_parent, self._name, self._orientation)
         if copy_data:
-            if self._orientation == 0 and row_mask:
+            if self._orientation == 0 and row_mask is not None:
                 new._raw_array = self._raw_array[row_mask]
             else:
                 new._raw_array = self._raw_array
