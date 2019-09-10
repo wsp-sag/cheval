@@ -458,8 +458,7 @@ class ChoiceModel(object):
             local_dict = shared_locals.copy()  # Make a shallow copy of the shared symbols
 
             # Add in any dict literals, expanding them to cover all choices
-            for substitution, series in expr.dict_literals.items():
-                local_dict[substitution] = series.reindex(col_index, fill_value=0)
+            expr._prepare_dict_literals(col_index, local_dict)
 
             # Evaluate any chains on-the-fly
             for symbol_name, usages in expr.chains.items():

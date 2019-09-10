@@ -22,6 +22,7 @@ class ChoiceNode(object):
     def __init__(self, root: 'ChoiceModel', name: str, parent: 'ChoiceNode'=None, logsum_scale: float=1.0,
                  level: int=0):
         assert '.' not in name, 'Choice node name cannot contain "."'
+        assert name != '_', 'The name "_" by itself is reserved, but choice names can include it (.e.g. "choice_2")'
         assert 0.0 < logsum_scale <= 1.0, "Logsum scale must be in hte interval (0, 1], got %s" % logsum_scale
 
         self._root: 'ChoiceModel' = root

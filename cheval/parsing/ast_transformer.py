@@ -1,5 +1,5 @@
 """Module for AST Transformer subclass which specially-parses utility expressions"""
-from typing import Dict, Tuple, Set
+from typing import Dict, Tuple, Set, Union
 
 import ast
 from collections import deque
@@ -22,13 +22,15 @@ _SUPPORTED_AGGREGATIONS = {
     'count', 'first', 'last', 'max', 'min', 'mean', 'median', 'prod', 'std', 'sum', 'var'
 }
 
+Number = Union[int, float, np.float64]
+
 
 class ExpressionParser(ast.NodeTransformer):
 
     def __init__(self, prior_simple: Set[str]=None, prior_chained: Set[str]=None, mode=EvaluationMode.UTILITIES):
         self.mode: EvaluationMode = mode
 
-        self.dict_literals: Dict[str, pd.Series] = {}
+        self.dict_literals: Dict[str, Dict[tuple, Number]] = {}
 
         # Optionally, use an ongoing collection of simple and chained symbols to enforce consistent usage
         # across a group of expressions
@@ -135,18 +137,18 @@ class ExpressionParser(ast.NodeTransformer):
     # region Dict literals
 
     @staticmethod
-    def __get_dict_key(node):
+    def __get_dict_key(node) -> tuple:
         if isinstance(node, ast.Name):
-            return node.id, 1
+            return node.id,
         if isinstance(node, ast.Str):
-            return node.s, 1
+            return node.s,
         if isinstance(node, ast.Attribute):
             keylist = deque()
             while not isinstance(node, ast.Name):
                 keylist.appendleft(node.attr)
                 node = node.value
             keylist.appendleft(node.id)
-            return tuple(keylist), len(keylist)
+            return tuple(keylist)
         raise UnsupportedSyntaxError("Dict key of type '%s' unsupported" % node)
 
     @staticmethod
@@ -178,30 +180,23 @@ class ExpressionParser(ast.NodeTransformer):
         new_node = ast.Name(substitution, ast.Load())
 
         try:
-            values = []
-            for val in node.values:
-                if isinstance(val, ast.UnaryOp):
-                    assert isinstance(val.operand, ast.Num)
-                    assert isinstance(val.op, ast.USub)
-                    values.append(np.float32(-val.operand.n))
-                elif isinstance(val, ast.Num):
-                    values.append(np.float32(val.n))
+
+            new_literal = {}
+            for key_node, val_node in zip(node.keys, node.values):
+                new_key = self.__get_dict_key(key_node)
+
+                if isinstance(val_node, ast.UnaryOp):
+                    assert isinstance(val_node.operand, ast.Num)
+                    assert isinstance(val_node.op, ast.USub)
+                    new_val = np.float32(-val_node.operand.n)
+                elif isinstance(val_node, ast.Num):
+                    new_val = np.float32(val_node.n)
                 else:
                     raise ValueError()
 
-            keys, max_level = [], 0
-            for key_node in node.keys:
-                key, level = self.__get_dict_key(key_node)
-                max_level = max(max_level, level)
-                keys.append(key)
-            resolved = self.__resolve_key_levels(keys, max_level)
-            if max_level == 1:
-                index = pd.Index(resolved)
-            else:
-                index = pd.MultiIndex.from_tuples(resolved)
+                new_literal[new_key] = new_val
 
-            s = pd.Series(values, index=index)
-            self.dict_literals[substitution] = s
+            self.dict_literals[substitution] = new_literal
 
             return new_node
 
