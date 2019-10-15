@@ -25,7 +25,7 @@ _NUMERIC_TYPES = {PandasDtype.INT_NAME, PandasDtype.UINT_NAME, PandasDtype.FLOAT
 
 
 class _IndexMeta:
-    labels: List[str] = attr.ib(convert=lambda x: [x] if isinstance(x, str) else list(x))
+    labels: List[str] = attr.ib(converter=lambda x: [x] if isinstance(x, str) else list(x))
     from_row_labels: bool = attr.ib()
 
     def __init__(self, labels=None, from_row_labels=True):
