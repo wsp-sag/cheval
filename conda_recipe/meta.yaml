@@ -1,0 +1,27 @@
+package:
+  name: wsp-cheval
+  version: "0.0.1"
+
+source:
+  path: ../
+
+build:
+  number: auto
+  noarch: python
+
+requirements:
+  build:
+    - python
+    - setuptools
+  run:
+    - pandas>=0.22,<0.24
+    - numpy>=1.15
+    - numba>=0.35
+    - numexpr>=2.6
+    - astor>=0.7.1
+    - attrs>=19.3
+    - deprecated>=1.2.6
+
+about:
+  home: https://github.com/wsp-sag/cheval
+  summary: A Python package for high-performance discrete-choice (logit) model evaluation in travel demand modelling
