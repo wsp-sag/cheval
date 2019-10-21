@@ -497,7 +497,15 @@ class LinkedDataFrame(DataFrame):
                 top = self._owner._top
                 df = top.other
                 grouper = top.other_grouper
-                evaluation = df.eval(expr)
+
+                if expr in df.columns:
+                    # Shortcut if the expression just refers to a column name
+                    evaluation = df[expr]
+                else:
+                    try:
+                        evaluation = df.evaluate(expr)
+                    except AttributeError:
+                        evaluation = df.eval(expr)
                 if not isinstance(evaluation, Series):
                     evaluation = pd.Series(evaluation, index=df.index)
 
@@ -742,7 +750,7 @@ class LinkedDataFrame(DataFrame):
                 new_columns.append(sub_item)
                 flags.append(False)
             else:
-                new_column_values = self.eval(sub_item)  # Evaluate the column to find links
+                new_column_values = self.evaluate(sub_item)  # Evaluate the column to find links
                 counter = 0
                 new_column_name = f"temp_{counter}"
                 while new_column_name in self:
