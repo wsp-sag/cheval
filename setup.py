@@ -11,7 +11,7 @@ else:
     raise RuntimeError("Unable to find version string in %s." % (VERSION_FILE,))
 
 setup(
-    name='cheval',
+    name='wsp-cheval',
     version=version_string,
     packages=find_packages(),
     python_requires='>=3.6',
