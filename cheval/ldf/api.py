@@ -91,8 +91,9 @@ class _LinkMeta:
     other_grouper: Optional[ndarray]
 
     @staticmethod
-    def create(owner,  other, self_labels: Union[List[str], str], self_from_row_labels: bool,
-               other_labels: Union[List[str], str], other_from_row_labels: bool, precompute: bool=True) -> '_LinkMeta':
+    def create(owner, other, self_labels: Union[List[str], str], self_from_row_labels: bool,
+               other_labels: Union[List[str], str], other_from_row_labels: bool,
+               precompute: bool = True) -> '_LinkMeta':
         self_meta = _IndexMeta(self_labels, self_from_row_labels)
         other_meta = _IndexMeta(other_labels, other_from_row_labels)
 
@@ -181,7 +182,6 @@ _LabelType = Union[str, List[str]]
 
 
 class LinkedDataFrame(DataFrame):
-
     __links: Dict[str, _LinkMeta]
     __identified_links: Set[str]
     __class_filler: SeriesFillManager = SeriesFillManager()
@@ -192,22 +192,27 @@ class LinkedDataFrame(DataFrame):
 
     @staticmethod
     def read_csv(*args, **kwargs) -> 'LinkedDataFrame':
+        """Wrapper for DataFrame.read_csv() that returns a LinkedDataFrame instead"""
         return LinkedDataFrame(pd.read_csv(*args, **kwargs))
 
     @staticmethod
     def read_table(*args, **kwargs) -> 'LinkedDataFrame':
+        """Wrapper for DataFrame.read_table() that returns a LinkedDataFrame instead"""
         return LinkedDataFrame(pd.read_table(*args, **kwargs))
 
     @staticmethod
     def read_clipboard(*args, **kwargs) -> 'LinkedDataFrame':
+        """Wrapper for DataFrame.read_clipboard() that returns a LinkedDataFrame instead"""
         return LinkedDataFrame(pd.read_clipboard(*args, **kwargs))
 
     @staticmethod
     def read_excel(*args, **kwargs) -> 'LinkedDataFrame':
+        """Wrapper for DataFrame.read_excel() that returns a LinkedDataFrame instead"""
         return LinkedDataFrame(pd.read_excel(*args, **kwargs))
 
     @staticmethod
     def read_fwf(*args, **kwargs) -> 'LinkedDataFrame':
+        """Wrapper for DataFrame.read_fwf() that returns a LinkedDataFrame instead"""
         return LinkedDataFrame(pd.read_fwf(*args, **kwargs))
 
     @staticmethod
@@ -233,9 +238,9 @@ class LinkedDataFrame(DataFrame):
         object.__setattr__(self, '_LinkedDataFrame__instance_filler', SeriesFillManager())
         object.__setattr__(self, '_LinkedDataFrame__column_fills', {})
 
-    def link_to(self, other: DataFrame, name: str, *, on: _LabelType=None, levels: _LabelType=None,
-                on_self: _LabelType=None, on_other: _LabelType=None, self_levels: _LabelType=None,
-                other_levels: _LabelType=None, precompute: bool=True) -> LinkAggregationRequired:
+    def link_to(self, other: DataFrame, name: str, *, on: _LabelType = None, levels: _LabelType = None,
+                on_self: _LabelType = None, on_other: _LabelType = None, self_levels: _LabelType = None,
+                other_levels: _LabelType = None, precompute: bool = True) -> LinkAggregationRequired:
         """
         Creates a new link from this DataFrame to another, assigning it to the given name.
 
@@ -331,6 +336,17 @@ class LinkedDataFrame(DataFrame):
     # region Fill value management
 
     def set_column_fill(self, column, value):
+        """
+        Set a specific fill value for a column in this LinkedDataFrame. This is only used when this frame is
+        the TARGET of a link (e.g. some_other_table.link_to(this_table,...).
+
+        Args:
+            column: The column name. Must currently exist in this frame, otherwise KeyError gets raised.
+            value: The value to be returned if accessed through a partial link.
+
+        Raises:
+            KeyError: if the column doesn't exist.
+        """
         if column not in self.columns:
             raise KeyError(column)
         self.__column_fills[column] = value
@@ -616,6 +632,22 @@ class LinkedDataFrame(DataFrame):
     # region Expression evaluation
 
     def evaluate(self, expr, local_dict: Dict[str, Any] = None, out: Series = None, allow_casting=True):
+        """
+        Evaluates a mathematical expression over all the rows in this frame. Very similar to vanilla .eval() in
+        concept, but supports Cheval-style expression syntax. For example, DataFrame.eval() doesn't support the
+        where() function, but LinkedDataFrame.evaluate does. Also supports accessing links (including aggregation)
+        inside the expression.
+
+        Args:
+            expr: The expression string to evaluate. Supports a subset of Cheval syntax, excluding dict literals,
+                and "@ <choice_name>" referencing which are particular to the ChoiceModel object.
+            local_dict:
+            out:
+            allow_casting:
+
+        Returns:
+
+        """
         new_expr = Expression.parse(expr, mode=EvaluationMode.DATAFRAME)
 
         ld = {} if local_dict is None else local_dict.copy()
