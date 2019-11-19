@@ -383,7 +383,7 @@ class TableSymbol(AbstractSymbol):
 
     def copy(self, new_parent: 'ChoiceModel', copy_data, row_mask):
         new = TableSymbol(new_parent, self._name, self._orientation, self._mandatory_attributes, self._allow_links)
-        if copy_data:
+        if copy_data and self._table is not None:
             if self._orientation == 0 and row_mask is not None:
                 new._table = self._table.loc[row_mask]
             else:
