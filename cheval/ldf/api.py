@@ -87,8 +87,10 @@ class _LinkMeta:
     aggregation_required: bool
     self_meta: _IndexMeta
     other_meta: _IndexMeta
+
     flat_indexer: Optional[ndarray]
     other_grouper: Optional[ndarray]
+    missing_indices: Optional[ndarray]
 
     @staticmethod
     def create(owner, other, self_labels: Union[List[str], str], self_from_row_labels: bool,
@@ -141,21 +143,22 @@ class _LinkMeta:
 
     def _make_indexer(self, self_indexer: Index, other_indexer: Index):
         if self.aggregation_required:
-            flat_grouper, group_labels = other_indexer.factorize()
-            self.other_grouper = flat_grouper
-            self.flat_indexer = group_labels.get_indexer_for(self_indexer)
+            group_ints, group_order = other_indexer.factorize()
+            self.other_grouper = group_ints
+            self.flat_indexer, self.missing_indices = group_order.get_indexer_non_unique(self_indexer)
+
         else:
             if self_indexer.equals(other_indexer):
-                flat_indexer = np.arange(len(other_indexer))
+                self.flat_indexer = np.arange(len(other_indexer))
+                self.missing_indices = np.ndarray([])
             else:
-                flat_indexer = other_indexer.get_indexer(self_indexer)
-            self.flat_indexer = flat_indexer
+                self.flat_indexer, self.missing_indices = other_indexer.get_indexer_non_unique(self_indexer)
 
     @property
-    def indexer(self) -> ndarray:
-        if self.flat_indexer is None:
+    def indexer_and_missing(self) -> Tuple[ndarray, ndarray]:
+        if self.flat_indexer is None or self.missing_indices is None:
             self.precompute()
-        return self.flat_indexer
+        return self.flat_indexer, self.missing_indices
 
     @property
     def chained(self) -> bool:
@@ -434,15 +437,14 @@ class LinkedDataFrame(DataFrame):
         def _top(self) -> _LinkMeta:
             return self._history[0]
 
-        def _resolve_history(self, series: ndarray, fill_value, skip_first=False):
+        def _resolve_history(self, series: ndarray, fill_value):
             for meta in self._history:
-                if skip_first:
-                    skip_first = False
-                    continue
+                # Get the indexing data
                 meta: _LinkMeta = meta
-                indexer = meta.indexer
-                series = series[indexer]
-                series[indexer < 0] = fill_value
+                indexer, missing = meta.indexer_and_missing
+
+                series = series[indexer]  # Reorder/duplicate/drop the raw array
+                series[missing] = fill_value  # Fill in missing values
             return Series(series, index=self._root_index)
 
         def __getattr__(self, item):
@@ -512,7 +514,6 @@ class LinkedDataFrame(DataFrame):
             def __call__(self, expr="1", *, int_fill=-1, **kwargs):
                 top = self._owner._top
                 df = top.other
-                grouper = top.other_grouper
 
                 if expr in df.columns:
                     # Shortcut if the expression just refers to a column name
@@ -537,14 +538,11 @@ class LinkedDataFrame(DataFrame):
                 elif series_type == PandasDtype.TIME_NAME:
                     raise NotImplementedError("Haven't found a way to instantiate NaT filler")
 
-                grouped = evaluation.groupby(grouper)
-                series = getattr(grouped, self._func_name)(**kwargs)
+                # Aggregate and align the result
+                grouper = top.other_grouper
+                grouped_result = getattr(evaluation.groupby(grouper), self._func_name)(**kwargs).values
 
-                if not series.index.equals(grouper):
-                    # In some cases (like nth), the returned array is missing some values
-                    series = series.reindex(grouper, fill_value=fill_value)
-
-                return self._owner._resolve_history(series.values, fill_value)
+                return self._owner._resolve_history(grouped_result, fill_value)
 
     # endregion
 
