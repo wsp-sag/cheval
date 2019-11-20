@@ -90,7 +90,7 @@ class _LinkMeta:
 
     flat_indexer: Optional[ndarray]
     other_grouper: Optional[ndarray]
-    missing_indices: Optional[ndarray]
+    missing_indices: Optional[Union[ndarray, list]]
 
     @staticmethod
     def create(owner, other, self_labels: Union[List[str], str], self_from_row_labels: bool,
@@ -150,7 +150,7 @@ class _LinkMeta:
         else:
             if self_indexer.equals(other_indexer):
                 self.flat_indexer = np.arange(len(other_indexer))
-                self.missing_indices = np.ndarray([])
+                self.missing_indices = []
             else:
                 self.flat_indexer, self.missing_indices = other_indexer.get_indexer_non_unique(self_indexer)
 
