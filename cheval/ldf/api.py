@@ -629,7 +629,7 @@ class LinkedDataFrame(DataFrame):
 
     # region Expression evaluation
 
-    def evaluate(self, expr, local_dict: Dict[str, Any] = None, out: Series = None, allow_casting=True):
+    def evaluate(self, expr, local_dict: Dict[str, Any] = None, out: Series = None, allow_casting=True, ):
         """
         Evaluates a mathematical expression over all the rows in this frame. Very similar to vanilla .eval() in
         concept, but supports Cheval-style expression syntax. For example, DataFrame.eval() doesn't support the
@@ -655,8 +655,6 @@ class LinkedDataFrame(DataFrame):
         for column in new_expr.symbols:
             try:
                 ld[column] = convert_series(self[column], allow_raw=False)
-            except TypeError:
-                pass
             except KeyError:
                 if column not in ld: raise
 
