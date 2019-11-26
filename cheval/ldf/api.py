@@ -173,8 +173,17 @@ class _LinkMeta:
         copied = _LinkMeta(self.owner, self.other, self.self_meta, self.other_meta, self._other_has_links)
         copied.aggregation_required = self.aggregation_required
 
-        if indices is not None and self.flat_indexer is not None:
-            copied.flat_indexer = self.flat_indexer[indices]
+        if indices is not None:
+            if self.flat_indexer is not None:
+                copied.flat_indexer = self.flat_indexer[indices]
+            if isinstance(self.missing_indices, list):
+                copied.missing_indices = []
+            elif isinstance(self.missing_indices, ndarray):
+                if len(self.missing_indices) > 0:
+                    mask = np.isin(self.missing_indices, indices)
+                    copied.missing_indices = self.missing_indices[mask]
+                else:
+                    copied.missing_indices = self.missing_indices[:]
 
         if self.other_grouper is not None:
             copied.other_grouper = self.other_grouper
