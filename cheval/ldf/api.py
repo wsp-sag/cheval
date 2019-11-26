@@ -117,6 +117,7 @@ class _LinkMeta:
         self.aggregation_required = False
         self.flat_indexer = None
         self.other_grouper = None
+        self.missing_indices = None
 
     def _determine_aggregation(self, precompute):
         self_indexer = self.self_meta.get_indexer(self.owner)
