@@ -154,11 +154,11 @@ class _LinkMeta:
             # Indexers are identical
             if self_indexer.equals(other_indexer):
                 self.flat_indexer = np.arange(len(other_indexer))
-                self.missing_indices = []
+                self.missing_indices = np.array([], dtype=int)
 
             # No missing values
             elif len(self_indexer.difference(other_indexer)) == 0:  # Taking the difference is faster than all(.isin())
-                self.missing_indices = []
+                self.missing_indices = np.array([], dtype=int)
                 self.flat_indexer = other_indexer.get_indexer(self_indexer)
 
             # All other cases
