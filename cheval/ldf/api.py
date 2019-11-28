@@ -149,9 +149,19 @@ class _LinkMeta:
             self.flat_indexer, self.missing_indices = group_order.get_indexer_non_unique(self_indexer)
 
         else:
+            # Performance-tuned fast paths for constructing indexers
+
+            # Indexers are identical
             if self_indexer.equals(other_indexer):
                 self.flat_indexer = np.arange(len(other_indexer))
                 self.missing_indices = []
+
+            # No missing values
+            elif len(self_indexer.difference(other_indexer)) == 0:  # Taking the difference is faster than all(.isin())
+                self.missing_indices = []
+                self.flat_indexer = other_indexer.get_indexer(self_indexer)
+
+            # All other cases
             else:
                 self.flat_indexer, self.missing_indices = other_indexer.get_indexer_non_unique(self_indexer)
 
