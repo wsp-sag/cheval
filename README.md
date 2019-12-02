@@ -4,7 +4,7 @@ Cheval is a Python package for high-performance evaluation of discrete-choice (l
 
 The name is an acronym for "CHoice EVALuator" but has a double-meaning as _cheval_ is the French word for "horse" - and this package has a lot of horsepower! It has been designed for use in travel demand modelling, specifically microsimulated discrete choice models that need to process hundreds of thousands of records through a logit model.
 
-Cheval is published by WSP Canada's System Analytics for Policy group.
+Cheval is owned and published by WSP Canada's System Analytics for Policy group.
 
 ## Key features
 
