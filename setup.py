@@ -19,7 +19,7 @@ setup(
         'pandas>= 0.22, <0.24',
         'numpy>=1.14',
         'astor',
-        'numba',
+        'numba=0.45',
         'numexpr',
         'deprecated',
         'attrs>=19.3'
