@@ -12,6 +12,9 @@ else:
 
 setup(
     name='wsp-cheval',
+    author='wsp',
+    maintatiner='Peter Kucirek',
+    maintainer_email='peter.kucirek@wsp.com',
     version=version_string,
     packages=find_packages(),
     python_requires='>=3.6',
