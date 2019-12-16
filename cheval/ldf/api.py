@@ -179,21 +179,28 @@ class _LinkMeta:
         """Top-level method to precompute the indexer"""
         self._make_indexer(*self._get_indexers())
 
-    def copy(self, indices=None) -> '_LinkMeta':
+    def copy_meta(self) -> '_LinkMeta':
         copied = _LinkMeta(self.owner, self.other, self.self_meta, self.other_meta, self._other_has_links)
         copied.aggregation_required = self.aggregation_required
+        return copied
 
-        if indices is not None:
-            if self.flat_indexer is not None:
+    def copy(self, indices=None) -> '_LinkMeta':
+        copied = self.copy_meta()
+
+        if self.flat_indexer is not None:
+            if indices is not None:
                 copied.flat_indexer = self.flat_indexer[indices]
-            if isinstance(self.missing_indices, list):
-                copied.missing_indices = []
-            elif isinstance(self.missing_indices, ndarray):
-                if len(self.missing_indices) > 0:
-                    mask = np.isin(self.missing_indices, indices)
-                    copied.missing_indices = self.missing_indices[mask]
-                else:
-                    copied.missing_indices = self.missing_indices[:]
+            else:
+                copied.flat_indexer = self.flat_indexer
+
+        if isinstance(self.missing_indices, list):
+            copied.missing_indices = []
+        elif isinstance(self.missing_indices, ndarray):
+            if indices is not None and len(self.missing_indices) > 0:
+                mask = np.isin(self.missing_indices, indices)
+                copied.missing_indices = self.missing_indices[mask]
+            else:
+                copied.missing_indices = self.missing_indices[:]
 
         if self.other_grouper is not None:
             copied.other_grouper = self.other_grouper
@@ -611,7 +618,7 @@ class LinkedDataFrame(DataFrame):
 
         # Copy the link metadata
         for link_name, link in other.__links.items():
-            self.__links[link_name] = link.copy()
+            self.__links[link_name] = link.copy_meta()
 
         self.__identified_links = other.__identified_links.copy()
 
@@ -644,6 +651,15 @@ class LinkedDataFrame(DataFrame):
             # supports <slice> objects just as easily as integer indexers, so it just works.
             self.__subset_links(new_frame, slobj)
         return new_frame
+
+    def copy(self, deep=False) -> 'LinkedDataFrame':
+        copied = super().copy(deep=deep)
+
+        # Copy the link data
+        for link_name, link_entry in self.__links.items():
+            copied.__links[link_name] = link_entry.copy()
+
+        return copied
 
     # endregion
 
