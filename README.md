@@ -21,7 +21,7 @@ Cheval is compatible with Python 3.6+
 
 ### With `pip`
 
-As a private package, Cheval **is not hosted on PyPI or other services that do not permit private code**. Currently the best way to install Balsa is using `pip` to install directly from GitHub:
+Currently, Cheval is not yet hosted on PyPI, Conda, or other distribution services. The best way to install Balsa is using `pip` to install directly from GitHub:
 
 ```batch
 pip install git+https://github.com/wsp-sag/cheval.git
