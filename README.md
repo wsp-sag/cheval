@@ -2,7 +2,7 @@
 
 Cheval is a Python package for high-performance evaluation of discrete-choice (logit) models. It's largely built upon the Pandas, NumPy, and NumExpr packages; along with some custom Numba code for performance-critical bottlenecks.
 
-The name is an acronym for "CHoice EVALuator" but has a double-meaning as _cheval_ is the French word for "horse" - and this package has a lot of horsepower! It has been designed for use in travel demand modelling, specifically microsimulated discrete choice models that need to process hundreds of thousands of records through a logit model.
+The name is an acronym for "CHoice EVALuator" but has a double-meaning as _cheval_ is the French word for "horse" - and this package has a lot of horsepower! It has been designed for use in travel demand modelling, specifically microsimulated discrete choice models that need to process hundreds of thousands of records through a logit model. It also supports "stochastic" models, where the probabilities are the key outputs.
 
 Cheval is owned and published by WSP Canada's System Analytics for Policy group.
 
