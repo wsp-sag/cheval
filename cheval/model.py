@@ -11,10 +11,10 @@ import numexpr as ne
 import numba as nb
 
 from .api import AbstractSymbol, ExpressionGroup, ChoiceNode, NumberSymbol, VectorSymbol, TableSymbol, MatrixSymbol, \
-    ExpressionSubGroup
+    ExpressionSubGroup, ModelResults
 from .exceptions import ModelNotReadyError
 from .core import (worker_nested_probabilities, worker_nested_sample, worker_multinomial_probabilities,
-                   worker_multinomial_sample, fast_indexed_add, UtilityBoundsError)
+                   worker_multinomial_sample, fast_indexed_add, UtilityBoundsError, worker_nested_utilities)
 from .parsing.constants import *
 
 
@@ -357,7 +357,7 @@ class ChoiceModel(object):
     def run_discrete(self, *, random_seed: int = None, n_draws: int = 1,
                      astype: Union[str, np.dtype] = 'category', squeeze: bool = True, n_threads: int = 1,
                      clear_scope: bool = True, result_name: str = None, logger: Logger = None, scale_utilities=True
-                     ) -> Tuple[Union[DataFrame, Series], Series]:
+                     ) -> ModelResults:
         """
         For each decision unit, discretely sample one or more times (with replacement) from the probability
         distribution.
@@ -368,7 +368,6 @@ class ChoiceModel(object):
                 proportional to the number of draws.
             astype: The dtype of the return array; the result will be cast to the
                 given dtype. The special value 'category' returns a Categorical Series (or a DataFrame for n_draws > 1).
-                The special value 'index' returns the positional index in the sorted array of node names.
             squeeze: Only used when n_draws == 1. If True, then a Series will be returned, otherwise a DataFrame
                 with one column will be returned.
             n_threads: The number of threads to uses in the computation. Must be >= 1
@@ -409,8 +408,11 @@ class ChoiceModel(object):
 
         # Finalize results
         logsum = Series(logsum, index=self.decision_units)
-        result = self._convert_result(raw_result, astype, squeeze, result_name)
-        return result, logsum
+        result, indices = self._convert_result(raw_result, astype, squeeze, result_name)
+
+        result_package = ModelResults(logsum, scale_utilities, indices=indices, selected=result,
+                                      random_seed=random_seed)
+        return result_package
 
     def _make_column_mask(self, filter_: str) -> Union[int, None]:
         if filter_ is None: return None
@@ -499,16 +501,18 @@ class ChoiceModel(object):
         expr_to_run = f"{OUT_STR} + ({transformed_expr})"
         ne.evaluate(expr_to_run, local_dict=local_dict, out=out, casting=casting_rule)
 
-    def _convert_result(self, raw_result: ndarray, astype, squeeze: bool, result_name: str) -> Union[Series, DataFrame]:
+    def _convert_result(self, raw_result: ndarray, astype, squeeze: bool, result_name: str
+                        ) -> Union[Tuple[Series, Series], Tuple[DataFrame, DataFrame]]:
         n_draws = raw_result.shape[1]
         column_index = pd.RangeIndex(n_draws, name=result_name)
         record_index = self.decision_units
 
-        if astype == 'index':
-            if squeeze and n_draws == 1:
-                return pd.Series(raw_result[:, 0], index=record_index, name=result_name)
-            return pd.DataFrame(raw_result, index=record_index, columns=column_index)
-        elif astype == 'category':
+        if squeeze and n_draws == 1:
+            indices = pd.Series(raw_result[:, 0], index=record_index, name=result_name)
+        else:
+            indices = pd.DataFrame(raw_result, index=record_index, columns=column_index)
+
+        if astype == 'category':
             lookup_table = pd.Categorical(self.choices)
         else:
             lookup_table = self.choices.astype(astype)
@@ -523,10 +527,10 @@ class ChoiceModel(object):
         if n_draws == 1 and squeeze:
             retval = retval.iloc[:, 0]
             retval.name = result_name
-        return retval
+        return retval, indices
 
     def run_stochastic(self, n_threads: int = 1, clear_scope: bool = True, logger: Logger = None,
-                       group: str = None, scale_utilities=True) -> Tuple[DataFrame, Series]:
+                       group: str = None, scale_utilities=True) -> ModelResults:
         """
         For each record, compute the probability distribution of the logit model. A DataFrame will be returned whose
         columns match the sorted list of node names (alternatives) in the model. Probabilities over all alternatives for
@@ -570,7 +574,8 @@ class ChoiceModel(object):
             result_frame = DataFrame(raw_result, index=self.decision_units, columns=self.choices)
         logsum = Series(logsum, index=self.decision_units)
 
-        return result_frame, logsum
+        result_package = ModelResults(logsum, scale_utilities, probabilities=result_frame, group_name=group)
+        return result_package
 
     def _build_nested_stochastic_frame(self, raw_result: ndarray) -> DataFrame:
         elemental_index = self.elemental_choices

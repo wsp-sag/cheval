@@ -463,3 +463,19 @@ class MatrixSymbol(AbstractSymbol):
     def filled(self): return self._matrix is not None
 
 # endregion
+
+# region Result collections
+
+
+@attr.s
+class ModelResults:
+    top_logsums: pd.Series = attr.ib()
+    scaled_utils: bool = attr.ib()
+    indices: Union[pd.DataFrame, pd.Series] = attr.ib(default=None)
+    selected: Union[pd.DataFrame, pd.Series] = attr.ib(default=None)
+    probabilities: pd.DataFrame = attr.ib(default=None)
+    final_utilities: pd.DataFrame = attr.ib(default=None)
+    random_seed: int = attr.ib(default=None)
+    group_name: str = attr.ib(default=None)
+
+# endregion
