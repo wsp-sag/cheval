@@ -512,4 +512,71 @@ def _fast_indexed_add_i_i(out, addition, row_index, col_index):
         target_col = col_index[coli]
         out[target_row, target_col] += addition[rowi, coli]
 
+
+@njit(nogil=True, cache=True)
+def nested_utilities(flat_utilities: ndarray, hierarchy, levels, logsum_scales, bottom_flags, scale_utilities=True,
+                     out: ndarray = None) -> Tuple[ndarray, float]:
+    """
+    ( float[A], int[B], int[B], float[B], bool[B], bool, <float[A]>) -> ( float[A], float )
+
+    Compute JUST the non-exponentiated utilities for a nested logit model, updating the utility of nested choices with
+    the logsum from below. Does not solve the probability tree.
+    """
+    n_cells = len(flat_utilities)
+    if out is None: out = np.zeros(n_cells, dtype=np.float64)
+
+    top_logsum = 0.0
+    logsums = np.zeros(n_cells, dtype=np.float64)
+
+    max_level = levels.max()
+    current_level = max_level
+
+    for _ in range(max_level + 1):
+        # Go through levels in reverse order (e.g. starting at the bottom)
+        for index, level in enumerate(levels):
+            if level != current_level: continue  # This is still faster than using np.where()
+
+            parent = hierarchy[index]
+            parent_ls_scale = 1.0 if not scale_utilities or parent < 0 else logsum_scales[parent]
+            is_bottom = bottom_flags[index]
+            u = flat_utilities[index]
+
+            if is_bottom:
+                # If this node is at the bottom of the tree, no need to lookup the previously-stored logsum
+                new_u = u / parent_ls_scale
+            else:
+                existing_logsum = logsums[index]
+                current_ls_scale = logsum_scales[index]
+                new_u = u + current_ls_scale * np.log(existing_logsum)
+            out[index] = new_u
+            expu = np.exp(new_u)
+
+            if parent >= 0: logsums[parent] += expu
+            else: top_logsum += expu
+        current_level -= 1
+
+    return out, top_logsum
+
+
+@njit(parallel=True, nogil=True, cache=True)
+def worker_nested_utilities(flat_utilities: ndarray, parents, levels, ls_scales, bottom_flags, scale_utilities=True,
+                            ) -> Tuple[ndarray, ndarray]:
+    """
+    ( float[A, B], int[C], int[C], float[C], bool[C], bool ) -> ( float[A, B], float[A] )
+
+    Compute JUST the non-exponentiated utilities for a nested logit model, updating the utility of nested choices with
+    the logsum from below. Does not solve the probability tree.
+    """
+    n_rows, n_cols = flat_utilities.shape
+    result = np.zeros((n_rows, n_cols), dtype=np.float64)
+    ls_array = np.zeros(n_rows, dtype=np.float64)
+
+    for i in prange(n_rows):
+        utility_row = flat_utilities[i, :]
+        _, ls = nested_utilities(utility_row, parents, levels, ls_scales, bottom_flags, scale_utilities,
+                                 out=result[i, :])
+        ls_array[i] = ls
+
+    return result, ls_array
+
 # endregion
