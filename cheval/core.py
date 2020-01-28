@@ -17,8 +17,11 @@ class UtilityBoundsError(ValueError):
 # region Sampling
 
 
-@njit(nlong(ndouble[:], ndouble), nogil=True)
+@njit(nogil=True, cache=True)
 def sample_once(p_array: ndarray, r: float) -> int:
+    """
+    ( float[A], float ) -> int
+    """
     r = max(r, MIN_RANDOM_VALUE)
     cumsum = 0.0
     index = 0
@@ -30,9 +33,11 @@ def sample_once(p_array: ndarray, r: float) -> int:
     return len(p_array) - 1
 
 
-@njit(nlong(ndouble, ndouble[:]), nogil=True)
+@njit(nogil=True, cache=True)
 def logarithmic_search(r: float, cps: ndarray) -> int:
     """
+    ( float, float[A] ) -> int
+
     Logarithmic (binary) search algorithm for finding the greatest index whose cumulative probability is <= the random
     draw.
 
@@ -69,8 +74,11 @@ def logarithmic_search(r: float, cps: ndarray) -> int:
         return upper_bound
 
 
-@njit(void(ndouble[:]), nogil=True)
+@njit(nogil=True, cache=True)
 def nbf_cumsum(array: ndarray):
+    """
+    ( float[A] ) -> None
+    """
     accum = 0.0
     length = len(array)
     for i in range(length):
@@ -78,23 +86,35 @@ def nbf_cumsum(array: ndarray):
         array[i] = accum
 
 
-@njit(nlong[:](nlong, nlong), nogil=True)
+@njit(nogil=True, cache=True)
 def generate_rand_ints_for_parallel(seed: int, n: int) -> ndarray:
-    """Wrap random sampling in a separate function with parallel=False for stable results"""
+    """
+    ( int, int ) -> int
+
+    Wrap random sampling in a separate function with parallel=False for stable results
+    """
     np.random.seed(seed)
     return np.random.randint(0, MAX_RANDOM_VALUE, n)
 
 
-@njit(ndouble[:](nlong, nlong), nogil=True)
+@njit(nogil=True, cache=True)
 def generate_rand_floats_for_parallel(seed: int, n: int) -> ndarray:
-    """Wrap random sampling in a separate function with parallel=False for stable results"""
+    """
+    ( int, int ) -> float
+
+    Wrap random sampling in a separate function with parallel=False for stable results
+    """
     np.random.seed(seed)
     return np.random.uniform(MIN_RANDOM_VALUE, 1, n)
 
 
-@njit(nlong[:](ndouble[:], nlong, nlong, maybe(nlong[:])), nogil=True)
+@njit(nogil=True, cache=True)
 def sample_multi(p_array: ndarray, n: int, random_seed: int, out_array: ndarray = None) -> ndarray:
-    """Sample from a probability distribution multiple times using binary search"""
+    """
+    ( float[A], int, int, <float[A]> ) -> int[A]
+
+    Sample from a probability distribution multiple times using binary search
+    """
     np.random.seed(random_seed)
 
     nbf_cumsum(p_array)
@@ -114,16 +134,21 @@ def sample_multi(p_array: ndarray, n: int, random_seed: int, out_array: ndarray 
 # region Probability Computation
 
 
-@njit(ndouble[:](ndouble[:]), nogil=True)
+@njit(nogil=True, cache=True)
 def simple_probabilities(weights: ndarray) -> ndarray:
+    """
+    ( float[A] ) -> float[A]
+    """
     return weights / weights.sum()
 
 
-@njit([
-    NTuple((ndouble[:], ndouble))(ndouble[:]), NTuple((ndouble[:], ndouble))(nfloat[:])
-], nogil=True)
+@njit(nogil=True, cache=True)
 def multinomial_probabilities(utilities: ndarray) -> Tuple[ndarray, float]:
-    """Computes probabilities given a multinomial logit model formulation."""
+    """
+    ( float[A] ) -> ( float[A], float )
+
+    Computes probabilities given a multinomial logit model formulation.
+    """
     n_cols = len(utilities)
     p = np.zeros(n_cols, dtype=np.float64)  # Return value
 
@@ -142,13 +167,14 @@ def multinomial_probabilities(utilities: ndarray) -> Tuple[ndarray, float]:
     return p, ls
 
 
-@njit([
-    NTuple((ndouble[:], ndouble))(ndouble[:], nlong[:], nlong[:], ndouble[:], nbool[:], nbool),
-    NTuple((ndouble[:], ndouble))(nfloat[:], nlong[:], nlong[:], ndouble[:], nbool[:], nbool)
-], nogil=True)
+@njit(nogil=True, cache=True)
 def nested_probabilities(utilities: ndarray, hierarchy, levels, logsum_scales, bottom_flags, scale_utilities=True
                          ) -> Tuple[ndarray, float]:
-    """Probability evaluation of a nested logit model, without needing a tree structure or any recursion."""
+    """
+    ( float[A], int[B], int[B], float[B], bool[B], bool ) -> ( float[A], float )
+
+    Probability evaluation of a nested logit model, without needing a tree structure or any recursion.
+    """
 
     n_cells = len(utilities)
     probabilities = utilities.astype(np.float64)
@@ -216,59 +242,71 @@ def nested_probabilities(utilities: ndarray, hierarchy, levels, logsum_scales, b
 # region Middle functions
 
 
-@njit(nlong(ndouble[:], ndouble), nogil=True)
+@njit(nogil=True, cache=True)
 def simple_sample(weights: ndarray, r: float) -> int:
-    """Samples once from an array of weights, from an existing random draw"""
+    """
+    ( float[A], float ) -> int
+
+    Samples once from an array of weights, from an existing random draw
+    """
     p_array = simple_probabilities(weights)
     return sample_once(p_array, r)
 
 
-@njit(nlong[:](ndouble[:], nlong, nlong, maybe(nlong[:])), nogil=True)
+@njit(nogil=True, cache=True)
 def simple_multisample(weights: ndarray, n: int, seed: int, out: ndarray = None) -> ndarray:
-    """Samples multiple times from an array of weights, based on a random seed. Thread-safe."""
+    """
+    ( float[A], int, int, float[A] ) -> int[A]
+
+    Samples multiple times from an array of weights, based on a random seed. Thread-safe.
+    """
     p_array = simple_probabilities(weights)
     return sample_multi(p_array, n, seed, out)
 
 
-@njit([
-    NTuple((nlong, ndouble))(ndouble[:], ndouble),
-    NTuple((nlong, ndouble))(nfloat[:], ndouble)
-], nogil=True)
+@njit(nogil=True, cache=True)
 def multinomial_sample(utilities: ndarray, r: float) -> Tuple[int, float]:
-    """Samples once from an array of multinomial logit utilities, from an existing random draw"""
+    """
+    ( float[A], float ) -> ( int, float )
+
+    Samples once from an array of multinomial logit utilities, from an existing random draw
+    """
     p_array, ls = multinomial_probabilities(utilities)
     return sample_once(p_array, r), ls
 
 
-@njit([
-    NTuple((nlong[:], ndouble))(ndouble[:], nlong, nlong, maybe(nlong[:])),
-    NTuple((nlong[:], ndouble))(nfloat[:], nlong, nlong, maybe(nlong[:]))
-], nogil=True)
+@njit(nogil=True, cache=True)
 def multinomial_multisample(utilities: ndarray, n: int, seed: int, out: ndarray = None) -> Tuple[np.ndarray, float]:
-    """Samples multiple times from an array of multinomial logit utilities, based on a random seed. Thread-safe."""
+    """
+    ( float[A], int, int, <int[A]> ) -> ( int[A], float )
+
+    Samples multiple times from an array of multinomial logit utilities, based on a random seed. Thread-safe.
+    """
     p_array, ls = multinomial_probabilities(utilities)
     return sample_multi(p_array, n, seed, out), ls
 
 
-@njit([
-    NTuple((nlong, ndouble))(ndouble[:], ndouble, nlong[:], nlong[:], ndouble[:], nbool[:], nbool),
-    NTuple((nlong, ndouble))(nfloat[:], ndouble, nlong[:], nlong[:], ndouble[:], nbool[:], nbool)
-], nogil=True)
+@njit(nogil=True, cache=True)
 def nested_sample(utilities: ndarray, r: float, parents, levels, ls_scales, bottom_flags, scale_utilities=True
                   ) -> Tuple[int, float]:
-    """Samples once from an array of nested logit utilities, from an existing random draw"""
+    """
+    ( float[A], float, int[B], int[B], float[B], bool[B], bool ) -> ( int, float )
+
+    Samples once from an array of nested logit utilities, from an existing random draw
+    """
     p_array, ls = nested_probabilities(utilities, parents, levels, ls_scales, bottom_flags,
                                        scale_utilities=scale_utilities)
     return sample_once(p_array, r), ls
 
 
-@njit([
-    NTuple((nlong[:], ndouble))(ndouble[:], nlong[:], nlong[:], ndouble[:], nbool[:], nlong, nlong, maybe(nlong[:]), nbool),
-    NTuple((nlong[:], ndouble))(nfloat[:], nlong[:], nlong[:], ndouble[:], nbool[:], nlong, nlong, maybe(nlong[:]), nbool)
-], nogil=True)
+@njit(nogil=True, cache=True)
 def nested_multisample(utilities: ndarray, parents, levels, ls_scales, bottom_flags, n: int, seed: int,
                        out: ndarray = None, scale_utilities=True) -> Tuple[ndarray, float]:
-    """Samples multiple times from an array of nested logit utilities, based on a random seed. Thread-safe."""
+    """
+    ( float[A], int[B], int[B], float[B], bool[B], int, int, <int[A]<, bool ) -> ( int[A], float )
+
+    Samples multiple times from an array of nested logit utilities, based on a random seed. Thread-safe.
+    """
     p_array, ls = nested_probabilities(utilities, parents, levels, ls_scales, bottom_flags,
                                        scale_utilities=scale_utilities)
     return sample_multi(p_array, n, seed, out), ls
@@ -279,8 +317,11 @@ def nested_multisample(utilities: ndarray, parents, levels, ls_scales, bottom_fl
 # region High level functions
 
 
-@njit(nlong[:, :](ndouble[:, :], nlong, nlong), parallel=True, nogil=True)
+@njit(parallel=True, nogil=True, cache=True)
 def worker_weighted_sample(weights: ndarray, n: int, seed: int) -> ndarray:
+    """
+    ( float[A, B], int, int ) -> int[A, B]
+    """
     n_rows = weights.shape[0]
     result = np.zeros((n_rows, n), dtype=np.int64)
 
@@ -300,12 +341,13 @@ def worker_weighted_sample(weights: ndarray, n: int, seed: int) -> ndarray:
     return result
 
 
-@njit([
-    NTuple((nlong[:, :], ndouble[:]))(ndouble[:, :], nlong, nlong),
-    NTuple((nlong[:, :], ndouble[:]))(nfloat[:, :], nlong, nlong)
-], parallel=True, nogil=True)
+@njit(parallel=True, nogil=True, cache=True)
 def worker_multinomial_sample(utilities: ndarray, n: int, seed: int) -> Tuple[ndarray, ndarray]:
-    """Runs multinomial_sample or multinomial_multisample in parallel."""
+    """
+    ( float[A, B], int, int ) -> ( int[A, B], float[A] )
+
+    Runs multinomial_sample or multinomial_multisample in parallel.
+    """
     n_rows = utilities.shape[0]
     result = np.zeros((n_rows, n), dtype=np.int64)
     ls_array = np.zeros(n_rows, dtype=np.float64)
@@ -327,12 +369,13 @@ def worker_multinomial_sample(utilities: ndarray, n: int, seed: int) -> Tuple[nd
     return result, ls_array
 
 
-@njit([
-    NTuple((ndouble[:, :], ndouble[:]))(ndouble[:, :]),
-    NTuple((ndouble[:, :], ndouble[:]))(nfloat[:, :])
-], parallel=True, nogil=True)
+@njit(parallel=True, nogil=True, cache=True)
 def worker_multinomial_probabilities(utilities: ndarray) -> Tuple[ndarray, ndarray]:
-    """Runs multinomial_probabilities in parallel"""
+    """
+    ( float[A, B] ) -> ( float[A, B], float[A] )
+
+    Runs multinomial_probabilities in parallel
+    """
     n_rows, n_cols = utilities.shape
     result = np.zeros((n_rows, n_cols), dtype=np.float64)
     ls_array = np.zeros(n_rows, dtype=np.float64)
@@ -346,10 +389,7 @@ def worker_multinomial_probabilities(utilities: ndarray) -> Tuple[ndarray, ndarr
     return result, ls_array
 
 
-@njit([
-    NTuple((nlong[:, :], ndouble[:]))(ndouble[:, :], nlong[:], nlong[:], ndouble[:], nbool[:], nlong, nlong, nbool),
-    NTuple((nlong[:, :], ndouble[:]))(nfloat[:, :], nlong[:], nlong[:], ndouble[:], nbool[:], nlong, nlong, nbool)
-], parallel=True, nogil=True)
+@njit(parallel=True, nogil=True, cache=True)
 def worker_nested_sample(utilities: ndarray, parents, levels, ls_scales, bottom_flags, n: int, seed: int,
                          scale_utilities=True) -> Tuple[ndarray, ndarray]:
     """Runs nested_sample or nested_multisample in parallel."""
@@ -378,13 +418,14 @@ def worker_nested_sample(utilities: ndarray, parents, levels, ls_scales, bottom_
     return result, ls_array
 
 
-@njit([
-    NTuple((ndouble[:, :], ndouble[:]))(ndouble[:, :], nlong[:], nlong[:], ndouble[:], nbool[:], nbool),
-    NTuple((ndouble[:, :], ndouble[:]))(nfloat[:, :], nlong[:], nlong[:], ndouble[:], nbool[:], nbool)
-], parallel=True, nogil=True)
+@njit(parallel=True, nogil=True, cache=True)
 def worker_nested_probabilities(utilities: ndarray, parents, levels, ls_scales, bottom_flags, scale_utilities=True
                                 ) -> Tuple[ndarray, ndarray]:
-    """Runs nested_probabilities in parallel"""
+    """
+    ( float[A, B], int[C], int[C], float[C], bool[C], bool ) -> ( float[A, B], float[A] )
+
+    Runs nested_probabilities in parallel
+    """
     n_rows, n_cols = utilities.shape
     result = np.zeros((n_rows, n_cols), dtype=np.float64)
     ls_array = np.zeros(n_rows, dtype=np.float64)
