@@ -383,10 +383,19 @@ class ChoiceModel(object):
                 can be a very large table, so the flag is set to False by default.
 
         Returns:
-            Tuple[DataFrame or Series, Series]: The first item returned is always the results of the model evaluation,
-                representing the choice(s) made by each decision unit. If n_draws > 1, the result is a DataFrame, with
-                n_draws columns, otherwise a Series. The second item is the top-level logsum term from the logit model,
-                for each decision unit. This is always a Series, as its value doesn't change with the number of draws.
+            NamedTuple of model results. Available and optional attributes are:
+                - selected (Series): The selected result for each decision unit. The dtype is determined by `astype`. If
+                    `n_draws` > 1, this is a DataFrame of *n_draws* columns.
+                - indices (Series): The index result for each decision unit, based on the order of ChoiceMode.chocies.
+                    If `n_draws` > 1, this is a DataFrame of *n_draws* columns. Dtype is int64.
+                - top_logsums (Series): The sum over the exponentiated utilities at the highest level of the logit
+                    model. This measures the attractiveness over all choices, relative between decision units. The index
+                    will match the decision units. Dtype is float64.
+                - scaled_utils (bool): Records if `scale_utilities=True`
+                - random_seed (int): Records the value of `random_seed`
+                -  final_utilities [Optional] (DataFrame): Calculated utilities used to compute the probabilities. The
+                    index matches the decision units, and the columns matches the choices. Dtype is float64. Only
+                    available when `save_utilities=True`.
 
         """
         self.validate()
@@ -561,12 +570,17 @@ class ChoiceModel(object):
                 can be a very large table, so the flag is set to False by default.
 
         Returns:
-            Tuple[DataFrame, Series]: The first item returned is always the results of the model evaluation,
-                representing the probabilities of each decision unit picking each choice. The columns of the result
-                table represent choices in this model; if this is a multinomial logit model then this will be a simple
-                string index. Nested logit models, however, will have a MultiIndex columns, with a number of levels
-                equal to the max depth of nesting. The second item is the top-level logsum term from the logit model,
-                for each decision unit.
+            NamedTuple of model results. Available and optional attributes are:
+                - probabilities (DataFrame): The probability of each decision unit selecting each choice. The index
+                    matches the decision units and the columns matches the choices. Dtype is float64.
+                - top_logsums (Series): The sum over the exponentiated utilities at the highest level of the logit
+                    model. This measures the attractiveness over all choices, relative between decision units. The index
+                    will match the decision units. Dtype is float64.
+                - scaled_utils (bool): Records if `scale_utilities=True`
+                -  final_utilities [Optional] (DataFrame): Calculated utilities used to compute the probabilities. The
+                    index matches the decision units, and the columns matches the choices. Dtype is float64. Only
+                    available when `save_utilities=True`.
+                - group_name [Optional] (str): Records the value of `group` kwarg.
         """
         self.validate()
 
