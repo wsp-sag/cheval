@@ -356,8 +356,8 @@ class ChoiceModel(object):
 
     def run_discrete(self, *, random_seed: int = None, n_draws: int = 1,
                      astype: Union[str, np.dtype] = 'category', squeeze: bool = True, n_threads: int = 1,
-                     clear_scope: bool = True, result_name: str = None, logger: Logger = None, scale_utilities=True
-                     ) -> ModelResults:
+                     clear_scope: bool = True, result_name: str = None, logger: Logger = None, scale_utilities=True,
+                     save_utilities=False) -> ModelResults:
         """
         For each decision unit, discretely sample one or more times (with replacement) from the probability
         distribution.
@@ -378,6 +378,9 @@ class ChoiceModel(object):
             scale_utilities: For a nested model, if True then lower-level utilities will be divided by the logsum scale
                 of the parent nest. If False, no scaling is performed. This is entirely dependant on the reported form
                 of estimated model parameters.
+            save_utilities: Set to True to save the calculated utilities with the result. The utilities are a DataFrame
+                whose index matches the ChoiceModel's `decision_units` and whose columns matches the `choices`. This
+                can be a very large table, so the flag is set to False by default.
 
         Returns:
             Tuple[DataFrame or Series, Series]: The first item returned is always the results of the model evaluation,
@@ -397,21 +400,29 @@ class ChoiceModel(object):
         if clear_scope: self.clear_scope()
 
         # Compute probabilities and sample
+        final_utils = None
         nb.config.NUMBA_NUM_THREADS = n_threads  # Set the number of threads for parallel execution
         nested = self.depth > 1
         if nested:
             hierarchy, levels, logsum_scales, bottom_flags = self._flatten()
             raw_result, logsum = worker_nested_sample(utility_table, hierarchy, levels, logsum_scales, bottom_flags,
                                                       n_draws, random_seed, scale_utilities=scale_utilities)
+            if save_utilities:
+                # It's easier to just recompute upper-level utilities than to add conditional logic deep into the core
+                # to retrieve them.
+                final_utils = worker_nested_utilities(utility_table, hierarchy, levels, logsum_scales, bottom_flags,
+                                                      scale_utilities=scale_utilities)
+                final_utils = DataFrame(final_utils, index=self.decision_units, columns=self.choices)
         else:
             raw_result, logsum = worker_multinomial_sample(utility_table, n_draws, random_seed)
+            final_utils = utility_table if save_utilities else None
 
         # Finalize results
         logsum = Series(logsum, index=self.decision_units)
         result, indices = self._convert_result(raw_result, astype, squeeze, result_name)
 
         result_package = ModelResults(logsum, scale_utilities, indices=indices, selected=result,
-                                      random_seed=random_seed)
+                                      random_seed=random_seed, final_utilities=final_utils)
         return result_package
 
     def _make_column_mask(self, filter_: str) -> Union[int, None]:
@@ -530,7 +541,7 @@ class ChoiceModel(object):
         return retval, indices
 
     def run_stochastic(self, n_threads: int = 1, clear_scope: bool = True, logger: Logger = None,
-                       group: str = None, scale_utilities=True) -> ModelResults:
+                       group: str = None, scale_utilities=True, save_utilities=False) -> ModelResults:
         """
         For each record, compute the probability distribution of the logit model. A DataFrame will be returned whose
         columns match the sorted list of node names (alternatives) in the model. Probabilities over all alternatives for
@@ -545,6 +556,9 @@ class ChoiceModel(object):
             scale_utilities: For a nested model, if True then lower-level utilities will be divided by the logsum scale
                 of the parent nest. If False, no scaling is performed. This is entirely dependant on the reported form
                 of estimated model parameters.
+            save_utilities: Set to True to save the calculated utilities with the result. The utilities are a DataFrame
+                whose index matches the ChoiceModel's `decision_units` and whose columns matches the `choices`. This
+                can be a very large table, so the flag is set to False by default.
 
         Returns:
             Tuple[DataFrame, Series]: The first item returned is always the results of the model evaluation,
@@ -562,6 +576,7 @@ class ChoiceModel(object):
         if clear_scope: self.clear_scope()
 
         # Compute probabilities
+        final_utils = None
         nb.config.NUMBA_NUM_THREADS = n_threads  # Set the number of threads for parallel execution
         nested = self.depth > 1
         if nested:
@@ -569,12 +584,22 @@ class ChoiceModel(object):
             raw_result, logsum = worker_nested_probabilities(utility_table, hierarchy, levels, logsum_scales,
                                                              bottom_flags, scale_utilities=scale_utilities)
             result_frame = self._build_nested_stochastic_frame(raw_result)
+
+            if save_utilities:
+                # It's easier to just recompute upper-level utilities than to add conditional logic deep into the core
+                # to retrieve them.
+                final_utils = worker_nested_utilities(utility_table, hierarchy, levels, logsum_scales, bottom_flags,
+                                                      scale_utilities=scale_utilities)
+                final_utils = DataFrame(final_utils, index=self.decision_units, columns=self.choices)
         else:
             raw_result, logsum = worker_multinomial_probabilities(utility_table)
             result_frame = DataFrame(raw_result, index=self.decision_units, columns=self.choices)
+            final_utils = utility_table if save_utilities else None
+
         logsum = Series(logsum, index=self.decision_units)
 
-        result_package = ModelResults(logsum, scale_utilities, probabilities=result_frame, group_name=group)
+        result_package = ModelResults(logsum, scale_utilities, probabilities=result_frame, group_name=group,
+                                      final_utilities=final_utils)
         return result_package
 
     def _build_nested_stochastic_frame(self, raw_result: ndarray) -> DataFrame:
