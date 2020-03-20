@@ -418,8 +418,12 @@ class ChoiceModel(object):
 
         column_depth = col_index.nlevels
         filter_parts = filter_.split('.')
-        assert len(filter_parts) <= column_depth
-        index_item = tuple(filter_parts + ['.'] * (column_depth - len(filter_parts)))
+        if column_depth == 1:
+            assert len(filter_parts) == 1
+            index_item = filter_parts[0]
+        else:
+            assert len(filter_parts) <= column_depth
+            index_item = tuple(filter_parts + ['.'] * (column_depth - len(filter_parts)))
         return col_index.get_loc(index_item)  # Get the column number for the selected choice
 
     def _evaluate_utilities(self, expressions: Union[ExpressionGroup, ExpressionSubGroup],
