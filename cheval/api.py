@@ -158,6 +158,8 @@ class ExpressionGroup(object):
             subgroup.append(expr)
         else:
             self._ungrouped_expressions.append(expr)
+            self._simple_symbols |= expr.symbols
+            for chain_name in expr.chains.keys(): self._chained_symbols.add(chain_name)
 
     def clear(self):
         self._ungrouped_expressions.clear()
