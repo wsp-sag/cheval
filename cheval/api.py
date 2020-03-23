@@ -217,7 +217,10 @@ class ExpressionGroup(object):
 
     def copy(self) -> 'ExpressionGroup':
         new = ExpressionGroup()
-        for e in self._ungrouped_expressions: new._ungrouped_expressions.append(e)
+        for e in self._ungrouped_expressions:
+            new._ungrouped_expressions.append(e)
+            new._simple_symbols |= e.symbols
+            for chain_name in e.chains.keys(): new._chained_symbols.add(chain_name)
         for name, subgroup in self._subgroups.items():
             new_sg = ExpressionSubGroup(name)
             for e in subgroup: new_sg.append(e)
