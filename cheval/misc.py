@@ -1,7 +1,8 @@
 import pandas as pd
 import numpy as np
 
-def convert_series(s: pd.Series, allow_raw=False) -> np.ndarray:
+
+def convert_series(s: pd.Series, allow_raw: bool = False) -> np.ndarray:
     dtype = s.dtype
 
     if dtype.name == 'category':
@@ -31,5 +32,6 @@ def convert_series(s: pd.Series, allow_raw=False) -> np.ndarray:
     try:
         return s.values[...]
     except AttributeError:
-        if allow_raw: return s
+        if allow_raw:
+            return s
         raise

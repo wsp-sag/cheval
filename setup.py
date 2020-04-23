@@ -12,17 +12,17 @@ else:
 
 setup(
     name='wsp-cheval',
-    author='wsp',
-    maintatiner='Peter Kucirek',
-    maintainer_email='peter.kucirek@wsp.com',
+    author='WSP, Peter Kucirek',
+    maintatiner='Brian Cheung',
+    maintainer_email='brian.cheung@wsp.com',
     version=version_string,
     packages=find_packages(),
     python_requires='>=3.6',
     install_requires=[
-        'pandas>= 0.22, <0.24',
+        'pandas>=0.22, <0.24',
         'numpy>=1.14',
         'astor',
-        'numba==0.45',
+        'numba>=0.45',
         'numexpr',
         'deprecated',
         'attrs>=19.3'

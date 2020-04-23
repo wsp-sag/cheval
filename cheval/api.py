@@ -1,4 +1,4 @@
-from typing import Dict, Union, Set, TYPE_CHECKING, List, Generator, Hashable, Any
+from typing import Dict, Union, Set, TYPE_CHECKING, List, Generator, Hashable, Optional
 import abc
 from collections import deque
 
@@ -19,8 +19,8 @@ if TYPE_CHECKING:
 
 class ChoiceNode(object):
 
-    def __init__(self, root: 'ChoiceModel', name: str, parent: 'ChoiceNode'=None, logsum_scale: float=1.0,
-                 level: int=0):
+    def __init__(self, root: 'ChoiceModel', name: str, parent: 'ChoiceNode' = None, logsum_scale: float = 1.0,
+                 level: int = 0):
         assert '.' not in name, 'Choice node name cannot contain "."'
         assert name != '_', 'The name "_" by itself is reserved, but choice names can include it (.e.g. "choice_2")'
         assert 0.0 < logsum_scale <= 1.0, "Logsum scale must be in hte interval (0, 1], got %s" % logsum_scale
@@ -96,7 +96,7 @@ class ChoiceNode(object):
             retval[cutoff - 2] = self.name
         return tuple(retval)
 
-    def add_choice(self, name: str, logsum_scale: float=1.0) -> 'ChoiceNode':
+    def add_choice(self, name: str, logsum_scale: float = 1.0) -> 'ChoiceNode':
         node = self._root._create_node(name, logsum_scale, parent=self)
         self._children[name] = node
         return node
@@ -118,12 +118,15 @@ class ExpressionSubGroup:
     def append(self, e: Expression):
         self.expressions.append(e)
         self.simple_symbols |= e.symbols
-        for chain_name in e.chains.keys(): self.chained_symbols.add(chain_name)
+        for chain_name in e.chains.keys():
+            self.chained_symbols.add(chain_name)
 
     def __add__(self, other: 'ExpressionSubGroup') -> 'ExpressionSubGroup':
         new = ExpressionSubGroup(self.name)
-        for e in self.expressions: new.append(e)
-        for e in other.expressions: new.append(e)
+        for e in self.expressions:
+            new.append(e)
+        for e in other.expressions:
+            new.append(e)
         return new
 
     def itersimple(self):
@@ -159,7 +162,8 @@ class ExpressionGroup(object):
         else:
             self._ungrouped_expressions.append(expr)
             self._simple_symbols |= expr.symbols
-            for chain_name in expr.chains.keys(): self._chained_symbols.add(chain_name)
+            for chain_name in expr.chains.keys():
+                self._chained_symbols.add(chain_name)
 
     def clear(self):
         self._ungrouped_expressions.clear()
@@ -169,19 +173,22 @@ class ExpressionGroup(object):
 
     def itersimple(self, *, groups=True):
         yield from self._simple_symbols
-        if not groups: return
+        if not groups:
+            return
         for subgroup in self._subgroups.values():
             yield from subgroup.itersimple()
 
     def iterchained(self, *, groups=True):
         yield from self._chained_symbols
-        if not groups: return
+        if not groups:
+            return
         for subgroup in self._subgroups.values():
             yield from subgroup.iterchained()
 
     def __iter__(self, *, groups=True) -> Generator[Expression, None, None]:
         yield from self._ungrouped_expressions
-        if not groups: return
+        if not groups:
+            return
         for subgroup in self._subgroups.values():
             yield from subgroup
 
@@ -206,8 +213,7 @@ class ExpressionGroup(object):
         return new
 
     def tolist(self, raw=True):
-        if raw: return [e.raw for e in self._ungrouped_expressions]
-        return [e for e in self._ungrouped_expressions]
+        return [e.raw for e in self._ungrouped_expressions] if raw else [e for e in self._ungrouped_expressions]
 
     def get_group(self, name: Hashable) -> ExpressionSubGroup:
         return self._subgroups[name]
@@ -220,10 +226,12 @@ class ExpressionGroup(object):
         for e in self._ungrouped_expressions:
             new._ungrouped_expressions.append(e)
             new._simple_symbols |= e.symbols
-            for chain_name in e.chains.keys(): new._chained_symbols.add(chain_name)
+            for chain_name in e.chains.keys():
+                new._chained_symbols.add(chain_name)
         for name, subgroup in self._subgroups.items():
             new_sg = ExpressionSubGroup(name)
-            for e in subgroup: new_sg.append(e)
+            for e in subgroup:
+                new_sg.append(e)
             new._subgroups[name] = new_sg
         return new
 
@@ -286,7 +294,7 @@ class VectorSymbol(AbstractSymbol):
 
         assert orientation in {0, 1}
         self._orientation = orientation
-        self._raw_array: np.ndarray = None
+        self._raw_array: Optional[np.ndarray] = None
 
     def assign(self, data):
         index_to_check = self._parent.choices if self._orientation else self._parent.decision_units
@@ -304,8 +312,7 @@ class VectorSymbol(AbstractSymbol):
         self._raw_array = vector[...]  # Shallow copy
         n = len(index_to_check)
 
-        if self._orientation: self._raw_array.shape = 1, n
-        else: self._raw_array.shape = n, 1
+        self._raw_array.shape = 1, n if self._orientation else n, 1
 
     def _get(self):
         if self._raw_array is None:
@@ -333,16 +340,17 @@ class VectorSymbol(AbstractSymbol):
 
 class TableSymbol(AbstractSymbol):
 
-    def __init__(self, parent: 'ChoiceModel', name: str, orientation: int, mandatory_attributes: Set[str]=None,
-                 allow_links: bool=True):
+    def __init__(self, parent: 'ChoiceModel', name: str, orientation: int, mandatory_attributes: Set[str] = None,
+                 allow_links: bool = True):
         super().__init__(parent, name)
         assert orientation in {0, 1}
         self._orientation = orientation
 
-        if mandatory_attributes is None: mandatory_attributes = set()
+        if mandatory_attributes is None:
+            mandatory_attributes = set()
         self._mandatory_attributes = mandatory_attributes
         self._allow_links = bool(allow_links)
-        self._table: pd.DataFrame = None
+        self._table: Optional[pd.DataFrame] = None
 
     def assign(self, data):
         assert isinstance(data, pd.DataFrame)
@@ -357,7 +365,7 @@ class TableSymbol(AbstractSymbol):
 
         self._table = data
 
-    def _get(self, chain_info: ChainTuple=None):
+    def _get(self, chain_info: ChainTuple = None):
         assert chain_info is not None
 
         chained = len(chain_info.chain) > 1
@@ -403,7 +411,7 @@ class MatrixSymbol(AbstractSymbol):
 
     def __init__(self, parent: 'ChoiceModel', name: str, orientation: int = 0, reindex_cols=True, reindex_rows=True):
         super().__init__(parent, name)
-        self._matrix: np.ndarray = None
+        self._matrix: Optional[np.ndarray] = None
         assert orientation in {0, 1}
         self._orientation = orientation
         self._reindex_cols = reindex_cols
@@ -434,16 +442,20 @@ class MatrixSymbol(AbstractSymbol):
                 if not cols_match:
                     assert self._reindex_cols
                     col_indexer = cols.get_indexer(data.columns)
-                    if np.any(col_indexer < 0): raise NotImplementedError("Cannot handle missing columns")
+                    if np.any(col_indexer < 0):
+                        raise NotImplementedError("Cannot handle missing columns")
                     assert len(col_indexer) == data.shape[1]
-                else: col_indexer = slice(None)
+                else:
+                    col_indexer = slice(None)
 
                 if not rows_match:
                     assert self._reindex_rows
                     row_indexer = rows.get_indexer(data.index)
-                    if np.any(row_indexer < 0): raise NotImplementedError("Cannot handle missing rows")
+                    if np.any(row_indexer < 0):
+                        raise NotImplementedError("Cannot handle missing rows")
                     assert len(row_indexer) == data.shape[0]
-                else: row_indexer = slice(None)
+                else:
+                    row_indexer = slice(None)
 
                 matrix[row_indexer, col_indexer] = data
                 self._matrix = matrix

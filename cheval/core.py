@@ -2,8 +2,13 @@
 from typing import Tuple
 import numpy as np
 from numpy import ndarray
-from numba import prange, njit, float64 as ndouble, int64 as nlong, void, float32 as nfloat, boolean as nbool
-from numba.types import Tuple as NTuple, optional as maybe
+from numba import (prange, njit, float64 as ndouble, int64 as nlong, void, float32 as nfloat, boolean as nbool,
+                   optional as maybe)
+
+try:
+    from numba.core.types import Tuple as NTuple
+except ModuleNotFoundError:
+    from numba.types import Tuple as NTuple  # numba < 0.48.0
 
 MIN_RANDOM_VALUE = np.finfo(np.float64).tiny
 MAX_RANDOM_VALUE = np.iinfo(np.int32).max
@@ -161,7 +166,8 @@ def nested_probabilities(utilities: ndarray, hierarchy, levels, logsum_scales, b
     for _ in range(max_level + 1):
         # Go through levels in reverse order (e.g. starting at the bottom)
         for index, level in enumerate(levels):
-            if level != current_level: continue  # This is still faster than using np.where()
+            if level != current_level:
+                continue  # This is still faster than using np.where()
 
             parent = hierarchy[index]
             parent_ls_scale = 1.0 if not scale_utilities or parent < 0 else logsum_scales[parent]
@@ -180,8 +186,10 @@ def nested_probabilities(utilities: ndarray, hierarchy, levels, logsum_scales, b
                 # also get disabled.
                 expu = np.exp((probabilities[index] + current_ls_scale * np.log(existing_logsum)) / parent_ls_scale)
 
-            if parent >= 0: logsums[parent] += expu
-            else: top_logsum += expu
+            if parent >= 0:
+                logsums[parent] += expu
+            else:
+                top_logsum += expu
             probabilities[index] = expu
         current_level -= 1
 
@@ -199,14 +207,16 @@ def nested_probabilities(utilities: ndarray, hierarchy, levels, logsum_scales, b
     # Step 3: Compute absolute probabilities for child nodes, collecting parent nodes
     for current_level in range(1, max_level + 1):
         for index, level in enumerate(levels):
-            if level != current_level: continue
+            if level != current_level:
+                continue
             parent = hierarchy[index]
             probabilities[index] *= probabilities[parent]
 
     # Step 4: Zero-out parent node probabilities
     # This does not use a Set because Numba sets are really slow
     for parent in hierarchy:
-        if parent < 0: continue
+        if parent < 0:
+            continue
         probabilities[parent] = 0.0
 
     return probabilities, top_logsum

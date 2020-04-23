@@ -1,4 +1,4 @@
-from typing import Iterable, Dict, Union, Tuple, Set, Hashable
+from typing import Iterable, Dict, Union, Tuple, Set, Hashable, Optional
 from itertools import chain as iter_chain
 from multiprocessing import cpu_count
 from logging import Logger
@@ -10,8 +10,8 @@ import numpy as np
 import numexpr as ne
 import numba as nb
 
-from .api import AbstractSymbol, ExpressionGroup, ChoiceNode, NumberSymbol, VectorSymbol, TableSymbol, MatrixSymbol, \
-    ExpressionSubGroup
+from .api import (AbstractSymbol, ExpressionGroup, ChoiceNode, NumberSymbol, VectorSymbol, TableSymbol, MatrixSymbol,
+                  ExpressionSubGroup)
 from .exceptions import ModelNotReadyError
 from .core import (worker_nested_probabilities, worker_nested_sample, worker_multinomial_probabilities,
                    worker_multinomial_sample, fast_indexed_add, UtilityBoundsError)
@@ -20,7 +20,7 @@ from .parsing.constants import *
 
 class ChoiceModel(object):
 
-    def __init__(self, *, precision: int = 8, debug_id=None):
+    def __init__(self, *, precision: int = 8, debug_id: Tuple[int, int] = None):
 
         # Tree data
         self._max_level: int = 0
@@ -32,18 +32,18 @@ class ChoiceModel(object):
         self._scope: Dict[str, AbstractSymbol] = {}
 
         # Index objects
-        self._decision_units: Index = None
+        self._decision_units: Optional[Index] = None
 
         # Cached items
-        self._cached_cols: Index = None
-        self._cached_utils: DataFrame = None
+        self._cached_cols: Optional[Index] = None
+        self._cached_utils: Optional[DataFrame] = None
 
         # Other
         self._precision: int = 0
-        self.precision = precision
-        
-        self.debug_id = debug_id  # note that debug_id needs to be a valid label that can used to search a Pandas index
-        self.debug_results: DataFrame = None
+        self.precision: int = precision
+
+        self.debug_id: Optional[Tuple[int, int]] = debug_id  # debug_id must be a valid label used to search an Index
+        self.debug_results: Optional[DataFrame] = None
 
     @property
     def precision(self) -> int:
@@ -63,7 +63,8 @@ class ChoiceModel(object):
             matrix = np.zeros(shape=[len(self.decision_units), len(self.choices)], dtype=dtype)
             table = DataFrame(matrix, index=self.decision_units, columns=self.choices)
             self._cached_utils = table
-        else: table = self._cached_utils
+        else:
+            table = self._cached_utils
         return table
 
     # region Tree operations
@@ -85,8 +86,7 @@ class ChoiceModel(object):
         return node
 
     def add_choice(self, name: str, logsum_scale: float = 1.0) -> ChoiceNode:
-        """
-        Create and add a new discrete choice to the model, at the top level. Returns a node object which can also add
+        """Create and add a new discrete choice to the model, at the top level. Returns a node object which can also add
         nested choices, and so on. Choice names must only be unique within a given nest, although for clarity it is
         recommended that choice names are unique across all nests (especially when sampling afterwards).
 
@@ -100,20 +100,19 @@ class ChoiceModel(object):
 
         Returns:
             ChoiceNode: The added choice node, which also has an "add_choice" method for constructing nested models.
-
         """
-        if self._cached_cols is not None: self._cached_cols = None
-        if self._cached_utils is not None: self._cached_utils = None
+        if self._cached_cols is not None:
+            self._cached_cols = None
+        if self._cached_utils is not None:
+            self._cached_utils = None
 
         node = self._create_node(name, logsum_scale)
         self._top_nodes.add(node)
         return node
 
-    def add_choices(self, names: Iterable[str], logsum_scales: Iterable[float] = None
-                    ) -> Dict[str, ChoiceNode]:
-        """
-        Convenience function for batch-adding several choices at once (for a multinomial logit model). See add_choice()
-        for more details
+    def add_choices(self, names: Iterable[str], logsum_scales: Iterable[float] = None) -> Dict[str, ChoiceNode]:
+        """Convenience function for batch-adding several choices at once (for a multinomial logit model). See
+        ``add_choice()`` for more details.
 
         The model preserves the order of insertion of choices.
 
@@ -124,10 +123,11 @@ class ChoiceModel(object):
 
         Returns:
             dict: Mapping of name: ChoiceNode for the added nodes
-
         """
-        if self._cached_cols is not None: self._cached_cols = None
-        if self._cached_utils is not None: self._cached_utils = None
+        if self._cached_cols is not None:
+            self._cached_cols = None
+        if self._cached_utils is not None:
+            self._cached_utils = None
 
         if logsum_scales is None:
             logsum_scales = [1.0 for _ in names]
@@ -141,7 +141,8 @@ class ChoiceModel(object):
     @property
     def choices(self) -> Index:
         """Pandas Index representing the choices in the model"""
-        if self._cached_cols is not None: return self._cached_cols
+        if self._cached_cols is not None:
+            return self._cached_cols
 
         self.validate(decision_units=False, expressions=False, assignment=False)
         max_level = self.depth
@@ -152,7 +153,8 @@ class ChoiceModel(object):
             nested_tuples = [node.nested_id(max_level) for node in self._all_nodes.values()]
 
             level_names = ['root']
-            for i in range(1, max_level): level_names.append(f'nest_{i + 1}')
+            for i in range(1, max_level):
+                level_names.append(f'nest_{i + 1}')
 
             return MultiIndex.from_tuples(nested_tuples, names=level_names)
 
@@ -162,11 +164,13 @@ class ChoiceModel(object):
         chosen."""
         max_level = self.depth
 
-        if max_level == 1: return self.choices
+        if max_level == 1:
+            return self.choices
 
         elemental_tuples = []
         for node in self._all_nodes.values():
-            if node.is_parent: continue
+            if node.is_parent:
+                continue
             elemental_tuples.append(node.nested_id(max_level))
 
         return MultiIndex.from_tuples(elemental_tuples)
@@ -208,23 +212,21 @@ class ChoiceModel(object):
 
     @property
     def decision_units(self) -> Index:
-        """
-        The units or agents or OD pairs over which choices are to be evaluated. MUST BE SET before symbols can be
-        assigned, or utilities calculated; otherwise ModelNotReadyError will be raised
-        """
-        if self._decision_units is None: raise ModelNotReadyError("No decision units defined")
+        """The units or agents or OD pairs over which choices are to be evaluated. MUST BE SET before symbols can be
+        assigned, or utilities calculated; otherwise ModelNotReadyError will be raised"""
+        if self._decision_units is None:
+            raise ModelNotReadyError("No decision units defined")
         return self._decision_units
 
     @decision_units.setter
     def decision_units(self, item):
-        """
-        The units or agents or OD pairs over which choices are to be evaluated. MUST BE SET before symbols can be
-        assigned, or utilities calculated; otherwise ModelNotReadyError will be raised.
-        """
+        """The units or agents or OD pairs over which choices are to be evaluated. MUST BE SET before symbols can be
+        assigned, or utilities calculated; otherwise ModelNotReadyError will be raised."""
 
         # If there are any assigned symbols, clear them so as not to conflict with the new decision units
         for symbol in self._scope.values():
-            if isinstance(symbol, NumberSymbol): continue  # Don't empty symbols that don't depend on the DU.
+            if isinstance(symbol, NumberSymbol):
+                continue  # Don't empty symbols that don't depend on the DU.
             symbol.empty()
 
         if isinstance(item, Index):
@@ -236,7 +238,7 @@ class ChoiceModel(object):
     def _check_symbol_name(name: str):
         # TODO: Check function names from NumExpr
         if name in RESERVED_WORDS:
-            raise SyntaxError(f"Symbol name '{name}' cannot be used as it is a reserved keyword.")
+            raise SyntaxError(f"Symbol name `{name}` cannot be used as it is a reserved keyword.")
 
     def declare_number(self, name: str):
         """Declares a simple scalar variable, of number, boolean, or text type"""
@@ -245,22 +247,19 @@ class ChoiceModel(object):
         self._scope[name] = symbol
 
     def declare_vector(self, name: str, orientation: int):
-        """
-        Declares a vector variable. Vectors can be aligned with the decision units (rows, orientation=0) or choices (
-        columns, orientation=1). Supports NumPy arrays or Pandas Series objects.
+        """Declares a vector variable. Vectors can be aligned with the decision units (rows, orientation=0) or choices
+        (columns, orientation=1). Supports NumPy arrays or Pandas Series objects.
 
         Args:
             name: Name of the variable to declare
             orientation: 0 if oriented to the decision units/rows, 1 if oriented to the choices/columns
-
         """
         self._check_symbol_name(name)
         self._scope[name] = VectorSymbol(self, name, orientation)
 
     def declare_table(self, name: str, orientation: int, mandatory_attributes: Set[str] = None,
-                      allow_links=True):
-        """
-        Declares a table variable. Similar to vectors, tables can align with either the decision units (rows,
+                      allow_links: bool = True):
+        """Declares a table variable. Similar to vectors, tables can align with either the decision units (rows,
         orientation=0) or choices (columns, orientation=1), but allow for more complex attribute lookups. For ideal
         usage, all columns in the specified table should be valid Python variable names, as otherwise "dotted" access
         will not work in utility computation. LinkedDataFrames are fully supported (and even encouraged).
@@ -270,14 +269,12 @@ class ChoiceModel(object):
             orientation: 0 if oriented to the decision units/rows, 1 if oriented to the choices/columns
             mandatory_attributes:
             allow_links:
-
         """
         self._check_symbol_name(name)
         self._scope[name] = TableSymbol(self, name, orientation, mandatory_attributes, allow_links)
 
-    def declare_matrix(self, name: str, orientation: int = 0, reindex_cols=True, reindex_rows=True):
-        """
-        Declares a matrix that fully or partially aligns with the rows or columns. This is useful when manual control
+    def declare_matrix(self, name: str, orientation: int = 0, reindex_cols: bool = True, reindex_rows: bool = True):
+        """Declares a matrix that fully or partially aligns with the rows or columns. This is useful when manual control
         is needed over both the decision units and the choices. Only DataFrames are supported.
 
         Args:
@@ -288,7 +285,6 @@ class ChoiceModel(object):
                 missing values with 0
             reindex_rows: If True, allows the model to expand the assigned matrix over the choices, filling any
                 missing values with 0
-
         """
         self._check_symbol_name(name)
         self._scope[name] = MatrixSymbol(self, name, orientation, reindex_cols, reindex_rows)
@@ -312,9 +308,9 @@ class ChoiceModel(object):
     # endregion
     # region Run methods
 
-    def validate(self, *, tree=True, decision_units=True, expressions=True, assignment=True, group=None):
-        """
-        Checks that the model components are self-consistent and that the model is ready to run. Optionally, some
+    def validate(self, *, tree: bool = True, decision_units: bool = True, expressions: bool = True,
+                 assignment: bool = True, group: Hashable = None):
+        """Checks that the model components are self-consistent and that the model is ready to run. Optionally, some
         components can be skipped, in order to partially validate a model under construction.
 
         Also gets called internally by the model at various stages
@@ -329,11 +325,11 @@ class ChoiceModel(object):
 
         Raises:
             ModelNotReadyError: if any check fails.
-
         """
 
         def assert_valid(condition, message):
-            if not condition: raise ModelNotReadyError(message)
+            if not condition:
+                raise ModelNotReadyError(message)
 
         if tree:
             assert_valid(len(self._top_nodes) >= 2, "At least two or more choices must be defined")
@@ -344,22 +340,23 @@ class ChoiceModel(object):
         if decision_units:
             assert_valid(self.decision_units is not None, "Decision units must be defined.")
 
-        if not expressions and not assignment: return
+        if not expressions and not assignment:
+            return
 
         expr_container = self._expressions if group is None else self._expressions.get_group(group)
         symbols_to_check = list(expr_container.itersimple()) + list(expr_container.iterchained())
 
         for name in symbols_to_check:
-            if name in RESERVED_WORDS: continue  # These gets added in manually later.
+            if name in RESERVED_WORDS:
+                continue  # These gets added in manually later.
             assert_valid(name in self._scope, f"Symbol '{name}' used in expressions but has not been declared")
-            if assignment: assert_valid(self._scope[name].filled, f"Symbol '{name}' is declared but never assigned")
+            if assignment:
+                assert_valid(self._scope[name].filled, f"Symbol '{name}' is declared but never assigned")
 
-    def run_discrete(self, *, random_seed: int = None, n_draws: int = 1,
-                     astype: Union[str, np.dtype] = 'category', squeeze: bool = True, n_threads: int = 1,
-                     clear_scope: bool = True, result_name: str = None, logger: Logger = None, scale_utilities=True
-                     ) -> Tuple[Union[DataFrame, Series], Series]:
-        """
-        For each decision unit, discretely sample one or more times (with replacement) from the probability
+    def run_discrete(self, *, random_seed: int = None, n_draws: int = 1, astype: Union[str, np.dtype] = 'category',
+                     squeeze: bool = True, n_threads: int = 1, clear_scope: bool = True, result_name: str = None,
+                     logger: Logger = None, scale_utilities: bool = True) -> Tuple[Union[DataFrame, Series], Series]:
+        """For each decision unit, discretely sample one or more times (with replacement) from the probability
         distribution.
 
         Args:
@@ -385,7 +382,6 @@ class ChoiceModel(object):
                 representing the choice(s) made by each decision unit. If n_draws > 1, the result is a DataFrame, with
                 n_draws columns, otherwise a Series. The second item is the top-level logsum term from the logit model,
                 for each decision unit. This is always a Series, as its value doesn't change with the number of draws.
-
         """
         self.validate()
         if random_seed is None:
@@ -395,7 +391,8 @@ class ChoiceModel(object):
 
         # Utility computations
         utility_table = self._evaluate_utilities(self._expressions, n_threads=n_threads, logger=logger).values
-        if clear_scope: self.clear_scope()
+        if clear_scope:
+            self.clear_scope()
 
         # Compute probabilities and sample
         nb.config.NUMBA_NUM_THREADS = n_threads  # Set the number of threads for parallel execution
@@ -413,7 +410,8 @@ class ChoiceModel(object):
         return result, logsum
 
     def _make_column_mask(self, filter_: str) -> Union[int, None]:
-        if filter_ is None: return None
+        if filter_ is None:
+            return None
         col_index = self.choices
 
         column_depth = col_index.nlevels
@@ -436,17 +434,19 @@ class ChoiceModel(object):
         col_index = self.choices
 
         # if debug, get index location of corresponding id
+        debug_label = None
+        debug_expr = []
+        debug_results = []
         if self.debug_id:
             debug_label = row_index.get_loc(self.debug_id)
-            debug_expr = []
-            debug_results = []
 
         utilities = self._partial_utilities.values
 
         # Prepare locals, including scalar, vector, and matrix variables that don't need any further processing.
         shared_locals = {NAN_STR: np.nan, OUT_STR: utilities, NEG_INF_STR: NEG_INF_VAL}
         for name in expressions.itersimple():
-            if name in shared_locals: continue
+            if name in shared_locals:
+                continue
             symbol = self._scope[name]
             shared_locals[name] = symbol._get()
 
@@ -454,7 +454,8 @@ class ChoiceModel(object):
         casting_rule = 'same_kind' if allow_casting else 'safe'
 
         for expr in expressions:
-            if logger is not None: logger.debug(f"Evaluating expression '{expr.raw}'")
+            if logger is not None:
+                logger.debug(f"Evaluating expression `{expr.raw}`")
             # TODO: Add error handling
 
             choice_mask = self._make_column_mask(expr.filter_)
@@ -483,8 +484,8 @@ class ChoiceModel(object):
         if n_nans > 0:
             raise UtilityBoundsError(f"Found {n_nans} cells in utility table with NaN")
 
-        if self.debug_id:
-            self.debug_results = DataFrame(debug_results, index=debug_expr, columns=col_index)  # expressions.tolist() doesn't work...
+        if self.debug_id:  # expressions.tolist() doesn't work...
+            self.debug_results = DataFrame(debug_results, index=debug_expr, columns=col_index)
 
         return DataFrame(utilities, index=row_index, columns=col_index)
 
@@ -530,9 +531,8 @@ class ChoiceModel(object):
         return retval
 
     def run_stochastic(self, n_threads: int = 1, clear_scope: bool = True, logger: Logger = None,
-                       group: str = None, scale_utilities=True) -> Tuple[DataFrame, Series]:
-        """
-        For each record, compute the probability distribution of the logit model. A DataFrame will be returned whose
+                       group: Hashable = None, scale_utilities: bool = True) -> Tuple[DataFrame, Series]:
+        """For each record, compute the probability distribution of the logit model. A DataFrame will be returned whose
         columns match the sorted list of node names (alternatives) in the model. Probabilities over all alternatives for
         each record will sum to 1.0.
 
@@ -559,7 +559,8 @@ class ChoiceModel(object):
         # Utility computations
         expressions = self._expressions if group is None else self._expressions.get_group(group)
         utility_table = self._evaluate_utilities(expressions, n_threads=n_threads, logger=logger).values
-        if clear_scope: self.clear_scope()
+        if clear_scope:
+            self.clear_scope()
 
         # Compute probabilities
         nb.config.NUMBA_NUM_THREADS = n_threads  # Set the number of threads for parallel execution
@@ -588,17 +589,16 @@ class ChoiceModel(object):
 
     # region Advanced functions
 
-    def preval(self, group: Hashable, n_threads: int = None, logger: Logger = None,
-               drop_group=True, cleanup_scope=True):
-        """
-        When using expression groups, "pre-evaluate" the utility expressions for a specified group, caching the utility
-        table on the ChoiceModel.
+    def preval(self, group: Hashable, n_threads: int = None, logger: Logger = None, drop_group: bool = True,
+               cleanup_scope: bool = True):
+        """When using expression groups, "pre-evaluate" the utility expressions for a specified group, caching the
+        utility table on the ChoiceModel.
 
         This is an advanced modelling technique to facilitate complex segmented stochastic models, where segments share
-        decision units and some common utility expressions. Call preval() for the group of common expressions, and then
-        copy() or copy_subset() the ChoiceModel to fill other symbols with segment-specific values.
+        decision units and some common utility expressions. Call ``preval()`` for the group of common expressions, and
+        then ``copy()`` or ``copy_subset()`` the ChoiceModel to fill other symbols with segment-specific values.
 
-        Discrete (micorsimulated) models don't need this because the decision units of each segment shouldn't overlap.
+        Discrete (micro-simulated) models don't need this because the decision units of each segment shouldn't overlap.
         So there's no downside to double-computing common expressions.
 
         Args:
@@ -608,7 +608,6 @@ class ChoiceModel(object):
             drop_group: If True, the selected group will be "popped" from the set of groups, to avoid re-computing.
             cleanup_scope: If True, symbols unique to this group will be dropped from the scope. This can clean up
                 memory by de-referencing objects and arrays that are no longer required.
-
         """
         self.validate(group=group)
         subgroup = self._expressions.get_group(group)
@@ -628,22 +627,22 @@ class ChoiceModel(object):
             for name in symbols_to_clear:
                 del self._scope[name]
 
-        if drop_group: self._expressions.drop_group(group)
+        if drop_group:
+            self._expressions.drop_group(group)
 
-    def copy(self, *, decision_units=True, scope_declared=True, scope_assigned=True, expressions=True, utilities=True
-             ) -> 'ChoiceModel':
-        """
-        Makes a shallow or deep copy of this ChoiceModel. The tree of choices is always copied.
+    def copy(self, *, decision_units: bool = True, scope_declared: bool = True, scope_assigned: bool = True,
+             expressions: bool = True, utilities: bool = True) -> 'ChoiceModel':
+        """Makes a shallow or deep copy of this ChoiceModel. The tree of choices is always copied.
 
         Args:
             decision_units: Copy over the decision units, if already set.
             scope_declared: Copy over all declared symbols, but not their assigned values
             scope_assigned: Copy over all declared and their assigned values
             expressions: Copy over all expressions
-            utilities: Copy over the cached utility table from preval(), if it exists.
+            utilities: Copy over the cached utility table from ``preval()``, if it exists.
 
-        Returns: A copy of this ChoiceModel
-
+        Returns:
+            A copy of this ChoiceModel
         """
 
         new = ChoiceModel(precision=self.precision, debug_id=self.debug_id)
@@ -655,7 +654,8 @@ class ChoiceModel(object):
         new._cached_cols = self._cached_cols
 
         # Force the DU to be copied if the assigned scope is also being copied
-        if scope_assigned: decision_units = True
+        if scope_assigned:
+            decision_units = True
 
         if scope_declared or scope_assigned:
             for name, symbol in self._scope.items():
@@ -676,10 +676,11 @@ class ChoiceModel(object):
         return new
 
     def copy_subset(self, mask: Series) -> 'ChoiceModel':
-        """
-        Similar to copy(), except applies a boolean filter Series to the decision units and stored data. This includes:
+        """Similar to ``copy()``, except applies a boolean filter Series to the decision units and stored data. This
+        includes:
+
          - Decision units Index
-         - Partial utilities computed through .preval()
+         - Partial utilities computed through ``preval()``
          - Assigned vector, table, or matrix symbols (masked along the 0 axis)
 
         This should be a relatively fast operation.
@@ -689,7 +690,6 @@ class ChoiceModel(object):
 
         Returns:
             A copy of the current model, except with fewer decision units.
-
         """
 
         assert mask.index.equals(self.decision_units), "Mask Series must match decision units"
@@ -715,9 +715,8 @@ class ChoiceModel(object):
 
         return new
 
-    def add_partial_utilities(self, table: DataFrame, reindex_rows=False, reindex_columns=True):
-        """
-        Optimized function for adding partial utilities to the cached table from an external source. Faster than
+    def add_partial_utilities(self, table: DataFrame, reindex_rows: bool = False, reindex_columns: bool = True):
+        """Optimized function for adding partial utilities to the cached table from an external source. Faster than
         declaring a matrix symbol.
 
         Args:
