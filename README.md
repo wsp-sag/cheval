@@ -17,6 +17,10 @@ These components can be used together or separately.
 
 Cheval is compatible with Python 3.6+
 
+## Current Status
+
+*Version 0.1* is the latest release of cheval.
+
 ## Installation
 
 ### With `pip`
