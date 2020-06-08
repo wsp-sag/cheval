@@ -312,7 +312,10 @@ class VectorSymbol(AbstractSymbol):
         self._raw_array = vector[...]  # Shallow copy
         n = len(index_to_check)
 
-        self._raw_array.shape = 1, n if self._orientation else n, 1
+        if self._orientation:
+            self._raw_array.shape = 1, n
+        else:
+            self._raw_array.shape = n, 1
 
     def _get(self):
         if self._raw_array is None:
