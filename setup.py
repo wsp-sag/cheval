@@ -12,12 +12,16 @@ else:
 
 setup(
     name='wsp-cheval',
+    version=version_string,
+    description='High-performance discrete-choice (logit) travel demand model evaluation',
+    url='https://github.com/wsp-sag/cheval',
     author='WSP, Peter Kucirek',
     maintatiner='Brian Cheung',
     maintainer_email='brian.cheung@wsp.com',
-    version=version_string,
+    classifiers=[
+        'License :: OSI Approved :: MIT License'
+    ],
     packages=find_packages(),
-    python_requires='>=3.6',
     install_requires=[
         'pandas>=0.22, <0.24',
         'numpy>=1.14',
@@ -26,5 +30,6 @@ setup(
         'numexpr',
         'deprecated',
         'attrs>=19.3'
-    ]
+    ],
+    python_requires='>=3.6'
 )
