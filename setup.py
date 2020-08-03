@@ -1,7 +1,7 @@
 from setuptools import find_packages, setup
 
 import re
-VERSION_FILE = "cheval/_version.py"
+VERSION_FILE = "cheval/version.py"
 version_line = open(VERSION_FILE, "rt").read()
 regex = r"^__version__ = ['\"]([^'\"]*)['\"]"
 mo = re.search(regex, version_line, re.M)
