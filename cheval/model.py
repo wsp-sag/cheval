@@ -1,4 +1,4 @@
-from typing import Iterable, Dict, Union, Tuple, Set, Hashable, Optional
+from typing import Iterable, Dict, Union, Tuple, Set, Hashable, Optional, Any
 from itertools import chain as iter_chain
 from multiprocessing import cpu_count
 from logging import Logger
@@ -273,7 +273,8 @@ class ChoiceModel(object):
         self._check_symbol_name(name)
         self._scope[name] = TableSymbol(self, name, orientation, mandatory_attributes, allow_links)
 
-    def declare_matrix(self, name: str, orientation: int = 0, reindex_cols: bool = True, reindex_rows: bool = True):
+    def declare_matrix(self, name: str, orientation: int = 0, reindex_cols: bool = True, reindex_rows: bool = True,
+                       fill_value: Any = 0):
         """Declares a matrix that fully or partially aligns with the rows or columns. This is useful when manual control
         is needed over both the decision units and the choices. Only DataFrames are supported.
 
@@ -285,9 +286,12 @@ class ChoiceModel(object):
                 missing values with 0
             reindex_rows: If True, allows the model to expand the assigned matrix over the choices, filling any
                 missing values with 0
+            fill_value: The fill value to use for missing rows or columns when reindex_cols=True or reindex_rows=True.
+                The dtype of fill_value should be compatible with the dtype of the data being assigned, otherwise it
+                could lead to problems. Defaults to 0.
         """
         self._check_symbol_name(name)
-        self._scope[name] = MatrixSymbol(self, name, orientation, reindex_cols, reindex_rows)
+        self._scope[name] = MatrixSymbol(self, name, orientation, reindex_cols, reindex_rows, fill_value=fill_value)
 
     def __getitem__(self, item) -> AbstractSymbol:
         """Gets a declared symbol to be assigned"""

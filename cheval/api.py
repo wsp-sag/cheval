@@ -412,13 +412,15 @@ class TableSymbol(AbstractSymbol):
 
 class MatrixSymbol(AbstractSymbol):
 
-    def __init__(self, parent: 'ChoiceModel', name: str, orientation: int = 0, reindex_cols=True, reindex_rows=True):
+    def __init__(self, parent: 'ChoiceModel', name: str, orientation: int = 0, reindex_cols=True, reindex_rows=True,
+                 fill_value=0):
         super().__init__(parent, name)
         self._matrix: Optional[np.ndarray] = None
         assert orientation in {0, 1}
         self._orientation = orientation
         self._reindex_cols = reindex_cols
         self._reindex_rows = reindex_rows
+        self._fill_value = fill_value
 
     def assign(self, data):
         rows = self._parent.decision_units
@@ -437,11 +439,10 @@ class MatrixSymbol(AbstractSymbol):
             else:
                 '''
                 Try to manually control the amount of excess RAM needed for partial utilities, as Pandas reindex()
-                is quite hungry. If np.empty() is used, the resulting array will use very little memory - except for the
-                cells with data. This is important to keep this feature scalable.
+                is quite hungry. This is important to keep this feature scalable.
                 '''
 
-                matrix = np.empty([len(rows), len(cols)], dtype=data.values.dtype)
+                matrix = np.full([len(rows), len(cols)], self._fill_value, dtype=data.values.dtype)
                 if not cols_match:
                     assert self._reindex_cols
                     col_indexer = cols.get_indexer(data.columns)
@@ -471,7 +472,8 @@ class MatrixSymbol(AbstractSymbol):
     def empty(self): self._matrix = None
 
     def copy(self, new_parent: 'ChoiceModel', copy_data, row_mask):
-        new = MatrixSymbol(new_parent, self._name, self._orientation, self._reindex_cols, self._reindex_rows)
+        new = MatrixSymbol(new_parent, self._name, self._orientation, self._reindex_cols, self._reindex_rows,
+                           fill_value=self._fill_value)
         if copy_data and self._matrix is not None:
             if row_mask is not None:
                 new._matrix = self._matrix[row_mask, :]
