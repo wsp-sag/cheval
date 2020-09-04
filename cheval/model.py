@@ -399,7 +399,7 @@ class ChoiceModel(object):
             self.clear_scope()
 
         # Compute probabilities and sample
-        nb.config.NUMBA_NUM_THREADS = n_threads  # Set the number of threads for parallel execution
+        nb.set_num_threads(n_threads)  # Set the number of threads for parallel execution
         nested = self.depth > 1
         if nested:
             hierarchy, levels, logsum_scales, bottom_flags = self._flatten()
@@ -455,6 +455,7 @@ class ChoiceModel(object):
             shared_locals[name] = symbol._get()
 
         ne.set_num_threads(n_threads)
+        ne.set_vml_num_threads(n_threads)
         casting_rule = 'same_kind' if allow_casting else 'safe'
 
         for expr in expressions:
@@ -567,7 +568,7 @@ class ChoiceModel(object):
             self.clear_scope()
 
         # Compute probabilities
-        nb.config.NUMBA_NUM_THREADS = n_threads  # Set the number of threads for parallel execution
+        nb.set_num_threads(n_threads)  # Set the number of threads for parallel execution
         nested = self.depth > 1
         if nested:
             hierarchy, levels, logsum_scales, bottom_flags = self._flatten()
