@@ -13,13 +13,13 @@ Cheval contains two main components:
 - `cheval.ChoiceModel` which is the main entry point for discrete choice modelling
 - `cheval.LinkedDataFrame` which helps to simplify complex utility calculations.
 
-These components can be used together or separately.  
+These components can be used together or separately.
 
 Cheval is compatible with Python 3.6+
 
 ## Current Status
 
-*Version 0.1* is the latest release of cheval.
+*Version 0.1.1* is the latest release of cheval.
 
 ## Installation
 
