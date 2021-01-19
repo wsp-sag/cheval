@@ -1,5 +1,10 @@
 # Cheval (wsp-cheval)
 
+[![Conda Latest Release](https://anaconda.org/wsp_sap/wsp-cheval/badges/version.svg)](https://anaconda.org/wsp_sap/wsp-cheval)
+[![Conda Last Updated](https://anaconda.org/wsp_sap/wsp-cheval/badges/latest_release_date.svg)](https://anaconda.org/wsp_sap/wsp-cheval)
+[![Platforms](https://anaconda.org/wsp_sap/wsp-cheval/badges/platforms.svg)](https://anaconda.org/wsp_sap/wsp-cheval)
+[![License](https://anaconda.org/wsp_sap/wsp-cheval/badges/license.svg)](https://github.com/wsp-sag/cheval/blob/master/LICENSE)
+
 Cheval is a Python package for high-performance evaluation of discrete-choice (logit) models. It's largely built upon the Pandas, NumPy, and NumExpr packages; along with some custom Numba code for performance-critical bottlenecks.
 
 The name is an acronym for "CHoice EVALuator" but has a double-meaning as _cheval_ is the French word for "horse" - and this package has a lot of horsepower! It has been designed for use in travel demand modelling, specifically microsimulated discrete choice models that need to process hundreds of thousands of records through a logit model. It also supports "stochastic" models, where the probabilities are the key outputs.

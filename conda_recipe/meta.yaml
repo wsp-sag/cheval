@@ -8,7 +8,6 @@ source:
   path: ../
 
 build:
-  number: auto
   noarch: python
 
 requirements:
