@@ -15,7 +15,7 @@ from .api import (AbstractSymbol, ExpressionGroup, ChoiceNode, NumberSymbol, Vec
 from .exceptions import ModelNotReadyError
 from .core import (worker_nested_probabilities, worker_nested_sample, worker_multinomial_probabilities,
                    worker_multinomial_sample, fast_indexed_add, UtilityBoundsError)
-from .parsing.constants import *
+from .parsing.constants import NAN_STR, NEG_INF_STR, NEG_INF_VAL, OUT_STR, RESERVED_WORDS
 
 
 class ChoiceModel(object):

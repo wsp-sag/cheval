@@ -1,6 +1,6 @@
 """Top-level API, including the main LinkedDataFrame class"""
-from typing import List, Dict, Union, Deque, Tuple, Callable, Any, Optional, Set
-from collections import deque, Hashable
+from typing import List, Dict, Union, Deque, Tuple, Callable, Any, Optional, Set, Hashable
+from collections import deque
 
 from pandas import DataFrame, Series, Index, MultiIndex
 import pandas as pd
@@ -15,7 +15,7 @@ from .missing_data import SeriesFillManager, infer_dtype, PandasDtype
 from ..parsing.expressions import Expression
 from ..parsing.expr_items import EvaluationMode
 from ..parsing.constants import *
-from cheval.misc import convert_series
+from ..misc import convert_series
 
 _FillFunctionType = Callable[[Series], Union[int, float, bool, str]]
 _NUMERIC_AGGREGATIONS = {'max', 'min', 'mean', 'median', 'prod', 'std', 'sum', 'var', 'quantile'}
@@ -579,24 +579,24 @@ class LinkedDataFrame(DataFrame):
     that, when slicing along the rows (axis 0), link data is being preserved. When slicing along the columns (axis 1),
     this is not always the case, particularly when excluding columns that are needed for linkages. In such cases, the
     dependent links are removed silently - no warning is given, as such operations are routinely performed by various
-    Pandas functions. For example, DataFrame.pivot_table() will often drop columns. 
-    
+    Pandas functions. For example, DataFrame.pivot_table() will often drop columns.
+
     A note on performance:
     At the time of writing, the design of the DataFrame class makes it very difficult to have both fast slicing and
     fast link-based indexing. When LinkedDataFrame "precomputes" a linkage, it stores an array of positional indices
     which make for fast lookups. This can be an expensive operation the first time, but then subsequent calls are very
     fast. When slicing along the 0-axis, Pandas computes a similar indexer and applies it to the the underlying data. It
-    would be ideal if this indexer could be subsequently applied to the link-specific indexer, but unfortunately the 
+    would be ideal if this indexer could be subsequently applied to the link-specific indexer, but unfortunately the
     design of the __finalize__() method (which is used to copy over the link data) excludes this information. If the
     links were to be re-computed, this would slow down ALL slicing considerably - 1000x times at least. Conversely,
-    dropping the linkage indexer negates the advantage of precomputing an indexer in the first place. 
-    
+    dropping the linkage indexer negates the advantage of precomputing an indexer in the first place.
+
     Short of changing the Pandas internals to pass an indexer to the __finalize__() method (a monumental task), the
     solution implemented here is to support a subset of 0-axis indexing operations by overriding the relevant methods
     that call __finalize__(). For these common operations, slicing and link-indexing will both be fast - the best of
     both worlds. The cost is that such operations will need to be tested carefully to catch any changes to the Pandas
-    internals in the future.  
-    
+    internals in the future.
+
     Supported operations:
      - .loc[[True, False, True, True, False...]] (Boolean indexing)
      - .loc[["A", "B", "A", "C", ...]] (Label based indexing)
@@ -605,7 +605,7 @@ class LinkedDataFrame(DataFrame):
      - .head()
      - .tail()
      - .groupby() iteration (for group_id, frame_subset in frame.groupby(...)). This should also capture .get_group()
-    
+
     Peter Kucirek November 22 2018
     '''
 
