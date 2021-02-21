@@ -809,6 +809,8 @@ class LinkedDataFrame(DataFrame):
                 if len(new_values) == 1:
                     new_values = new_values[0]
 
+            # TODO: determine why margins=True causes things to crash...
+
             return super().pivot_table(index=new_index, columns=new_columns, values=new_values, aggfunc=aggfunc,
                                        fill_value=fill_value, margins=margins, dropna=dropna,
                                        margins_name=margins_name)
