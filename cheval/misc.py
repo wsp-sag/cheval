@@ -1,18 +1,31 @@
 import pandas as pd
+from pandas.api.types import is_integer_dtype
 import numpy as np
+
+_USE_TO_NUMPY = hasattr(pd.Series, 'to_numpy')
 
 
 def convert_series(s: pd.Series, allow_raw: bool = False) -> np.ndarray:
     dtype = s.dtype
 
-    if dtype.name == 'category':
+    if is_integer_dtype(dtype) and _USE_TO_NUMPY:
+        # need to deal with NA values in integer series in pandas >= 0.24
+        # https://pandas.pydata.org/pandas-docs/stable/whatsnew/v1.0.0.html#arrays-integerarray-now-uses-pandas-na
+        if np.all(~s.isna()):  # no NA values found
+            return s.to_numpy()[...]
+        else:  # if NA values are present, yet pandas keeps the series as an IntegerArray instead of float
+            try:
+                return np.asarray(s, dtype='float')[...]
+            except ValueError:
+                return s.to_numpy(dtype='float', na_value=np.nan)[...]  # pandas >= 1.0.0
+    elif dtype.name == 'category':
         # Categorical column
         categorical = s.values
 
         category_index = categorical.categories
         if category_index.dtype.name == 'object':
             max_len = category_index.str.len().max()
-            typename = 'S%s' % max_len
+            typename = f'S{max_len}'
         else:
             typename = category_index.dtype
 
@@ -22,15 +35,15 @@ def convert_series(s: pd.Series, allow_raw: bool = False) -> np.ndarray:
         # This is much slower than other dtypes, but it can't be helped. For now, users should just use Categoricals
         max_length = s.str.len().max()
         if np.isnan(max_length):
-            raise TypeError("Could not get max string length")
+            raise TypeError('Could not get max string length')
 
-        return s.values.astype("S%s" % max_length)
+        return s.to_numpy(dtype=f'S{max_length}') if _USE_TO_NUMPY else s.values.astype(f'S{max_length}')
     elif np.issubdtype(dtype, np.datetime64):
-        raise TypeError("Datetime columns are not supported")
+        raise TypeError('Datetime columns are not supported')
     elif np.issubdtype(dtype, np.timedelta64):
-        raise TypeError("Timedelta columns are not supported")
+        raise TypeError('Timedelta columns are not supported')
     try:
-        return s.values[...]
+        return s.to_numpy()[...] if _USE_TO_NUMPY else s.values[...]
     except AttributeError:
         if allow_raw:
             return s

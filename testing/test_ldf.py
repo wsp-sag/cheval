@@ -33,10 +33,11 @@ def test_slicing():
     pers_df.link_to(hh_df, 'household', on='household_id')
 
     mask = pers_df['household_id'] == 56
-    pers_df_subset = pers_df.loc[mask]
+    pers_df_subset = pers_df.loc[mask].copy()
+    pers_df_subset['household_income_class'] = pers_df_subset.household.income_class
 
-    test_result = pers_df_subset.household.income_class
+    test_result = pers_df_subset['household_income_class']
 
-    expected_result = pd.Series({8: 6, 9: 6, 10: 6, 13: 6})
+    expected_result = pd.Series({8: 6, 9: 6, 10: 6, 13: 6}, name='household_income_class')
 
     assert_series_equal(test_result, expected_result)

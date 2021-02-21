@@ -8,6 +8,5 @@ class LinkageSpecificationError(ValueError):
 
 
 class LinkAggregationRequired(Enum):
-
     YES = True
     NO = False

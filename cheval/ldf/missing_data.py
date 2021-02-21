@@ -1,10 +1,10 @@
 """Classes for managing missing data handling"""
-from typing import Dict, Any
-import enum
-from contextlib import contextmanager
 
-import pandas as pd
+from contextlib import contextmanager
+import enum
 import numpy as np
+import pandas as pd
+from typing import Dict, Any
 
 # Numpy dtypes are constructed on the fly, so the only way to test if a dtype is a 32-bit integer is to check using
 # strict equality (==). Initially, the collections below were sets, but then Python checks for containment by hashing
@@ -29,22 +29,29 @@ class PandasDtype(enum.Enum):
 
 def infer_dtype(s: pd.Series) -> PandasDtype:
     """Returns a simple name for the dtype of a Series. Currently doesn't handle TimeDelta or Time dtypes"""
-    if hasattr(s, 'cat'): return PandasDtype.CAT_NAME
-    if hasattr(s, 'str'): return PandasDtype.TEXT_NAME
-    if hasattr(s, 'dt'): return PandasDtype.TIME_NAME
+    if hasattr(s, 'cat'):
+        return PandasDtype.CAT_NAME
+    if hasattr(s, 'str'):
+        return PandasDtype.TEXT_NAME
+    if hasattr(s, 'dt'):
+        return PandasDtype.TIME_NAME
 
     type_to_check = s.dtype
-    if type_to_check == np.bool_: return PandasDtype.BOOL_NAME
-    if type_to_check in _INT_TYPES: return PandasDtype.INT_NAME
-    if type_to_check in _UINT_TYPES: return PandasDtype.UINT_NAME
-    if type_to_check in _FLOAT_TYPES: return PandasDtype.FLOAT_NAME
+    if type_to_check == np.bool_:
+        return PandasDtype.BOOL_NAME
+    if type_to_check in _INT_TYPES:
+        return PandasDtype.INT_NAME
+    if type_to_check in _UINT_TYPES:
+        return PandasDtype.UINT_NAME
+    if type_to_check in _FLOAT_TYPES:
+        return PandasDtype.FLOAT_NAME
 
     return PandasDtype.OBJ_NAME
 
 
 _default_fills = {
     PandasDtype.INT_NAME: 0, PandasDtype.UINT_NAME: 0, PandasDtype.FLOAT_NAME: np.nan, PandasDtype.BOOL_NAME: False,
-    PandasDtype.TEXT_NAME: "", PandasDtype.CAT_NAME: np.nan, PandasDtype.TIME_NAME: np.datetime64('nat'),
+    PandasDtype.TEXT_NAME: '', PandasDtype.CAT_NAME: np.nan, PandasDtype.TIME_NAME: np.datetime64('nat'),
     PandasDtype.OBJ_NAME: None
 }
 
