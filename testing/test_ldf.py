@@ -47,7 +47,8 @@ def test_evaluate():
     hh_df = LinkedDataFrame(households_data)
     pers_df = LinkedDataFrame(persons_list)
     pers_df.link_to(hh_df, 'household', on='household_id')
-    pers_df['hhinc_upper'] = pers_df.evaluate('where(household.income_class >= 4, True, False)')
+    pers_df['hhinc_upper'] = False
+    pers_df.evaluate('where(household.income_class >= 4, True, False)', out=pers_df['hhinc_upper'])
 
     test_result = pers_df['hhinc_upper']
 

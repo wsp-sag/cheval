@@ -1,4 +1,4 @@
-from typing import Dict, Set, Tuple, Optional, List, Union
+from typing import Dict, Set, Tuple, Optional
 import ast
 
 import attr
@@ -13,9 +13,11 @@ from .exceptions import UnsupportedSyntaxError
 
 def _split_filter(e: str) -> Tuple[str, Optional[str]]:
     parts = e.split('@')
-    if len(parts) == 1: return e, None
+    if len(parts) == 1:
+        return e, None
 
-    if len(parts) == 2: return parts[0].strip(), parts[1].strip()
+    if len(parts) == 2:
+        return parts[0].strip(), parts[1].strip()
 
     raise UnsupportedSyntaxError("Only one '@' symbol is allowed in expressions")
 

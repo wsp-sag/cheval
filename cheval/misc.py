@@ -1,8 +1,19 @@
 import pandas as pd
 from pandas.api.types import is_integer_dtype
 import numpy as np
+from typing import Union
 
 _USE_TO_NUMPY = hasattr(pd.Series, 'to_numpy')
+
+
+def to_numpy(frame_or_series: Union[pd.DataFrame, pd.Series], ignore_check: bool = False) -> np.ndarray:
+    """A helper function compatible with all versions of pandas to access numpy arrays. Set `ignore_check=True` to save
+    the computational cost of confirming that `.to_numpy()` does not produce a copy of `frame_or_series` values."""
+    arr = frame_or_series.to_numpy() if _USE_TO_NUMPY else frame_or_series.values
+    if _USE_TO_NUMPY and not ignore_check:  # only perform the check if we are using .to_numpy()
+        if not np.shares_memory(frame_or_series, arr):
+            arr = frame_or_series.values  # Fallback to using .values if we find that .to_numpy() is not a copy
+    return arr
 
 
 def convert_series(s: pd.Series, allow_raw: bool = False) -> np.ndarray:
@@ -43,7 +54,7 @@ def convert_series(s: pd.Series, allow_raw: bool = False) -> np.ndarray:
     elif np.issubdtype(dtype, np.timedelta64):
         raise TypeError('Timedelta columns are not supported')
     try:
-        return s.to_numpy()[...] if _USE_TO_NUMPY else s.values[...]
+        return to_numpy(s)[...]
     except AttributeError:
         if allow_raw:
             return s

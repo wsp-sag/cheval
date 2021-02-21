@@ -23,7 +23,7 @@ setup(
     ],
     packages=find_packages(),
     install_requires=[
-        'pandas>=0.22, <0.24',
+        'pandas>=0.22',
         'numpy>=1.14',
         'astor',
         'numba>=0.45',

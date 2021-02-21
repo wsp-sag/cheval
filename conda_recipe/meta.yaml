@@ -15,7 +15,7 @@ requirements:
     - python
   run:
     - python >=3.6
-    - pandas >=0.22,<0.24
+    - pandas >=0.22
     - numpy >=1.15
     - numba >=0.45
     - numexpr >=2.6

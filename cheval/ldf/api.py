@@ -13,7 +13,7 @@ from .missing_data import SeriesFillManager, infer_dtype, PandasDtype
 from ..parsing.constants import NAN_STR, NAN_VAL, NEG_INF_STR, NEG_INF_VAL
 from ..parsing.expressions import Expression
 from ..parsing.expr_items import EvaluationMode
-from ..misc import convert_series
+from ..misc import convert_series, to_numpy
 
 _LabelType = Union[str, List[str]]
 
@@ -21,8 +21,6 @@ _NUMERIC_AGGREGATIONS = {'max', 'min', 'mean', 'median', 'prod', 'std', 'sum', '
 _NON_NUMERIC_AGGREGATIONS = {'count', 'first', 'last', 'nth'}
 _SUPPORTED_AGGREGATIONS = sorted(_NUMERIC_AGGREGATIONS | _NON_NUMERIC_AGGREGATIONS)
 _NUMERIC_TYPES = {PandasDtype.INT_NAME, PandasDtype.UINT_NAME, PandasDtype.FLOAT_NAME, PandasDtype.BOOL_NAME}
-
-_USE_TO_NUMPY = hasattr(DataFrame, 'to_numpy')
 
 
 class _IndexMeta:
@@ -63,7 +61,7 @@ class _IndexMeta:
             for label in self.labels:
                 if label not in frame:
                     raise LinkageSpecificationError(f'Column `{label}` not in the columns')
-                arr = frame[label].to_numpy() if _USE_TO_NUMPY else frame[label].values
+                arr = to_numpy(frame[label])
                 arrays.append(arr)
 
         if len(arrays) == 1:
@@ -482,7 +480,7 @@ class LinkedDataFrame(DataFrame):
             df = top.other
             series = df[item]
             fill_value = LinkedDataFrame._get_class_fill(series)
-            arr = series.to_numpy() if _USE_TO_NUMPY else series.values
+            arr = to_numpy(series)
             return self._resolve_history(arr, fill_value)
 
     class _LinkNode(_BaseNode):
@@ -510,7 +508,7 @@ class LinkedDataFrame(DataFrame):
 
             series = df[item]
             fill_value = df._get_fill(series, item)
-            arr = series.to_numpy() if _USE_TO_NUMPY else series.values
+            arr = to_numpy(series)
             return self._resolve_history(arr, fill_value)
 
     class _LeafAggregation(_BaseNode):
@@ -559,8 +557,7 @@ class LinkedDataFrame(DataFrame):
 
                 # Aggregate and align the result
                 grouper = top.other_grouper
-                grouped_result = getattr(evaluation.groupby(grouper), self._func_name)(**kwargs)
-                grouped_result = grouped_result.to_numpy() if _USE_TO_NUMPY else grouped_result.values
+                grouped_result = to_numpy(getattr(evaluation.groupby(grouper), self._func_name)(**kwargs))
 
                 return self._owner._resolve_history(grouped_result, fill_value)
 
@@ -716,15 +713,11 @@ class LinkedDataFrame(DataFrame):
 
                 ld[substitution] = convert_series(series)
 
-        out_: Optional[np.ndarray] = None
         if out is not None:
-            out_ = out.to_numpy() if _USE_TO_NUMPY else out.values
-            if _USE_TO_NUMPY and not ignore_check:  # only perform the check if we are using .to_numpy()
-                if not np.shares_memory(out, out_):
-                    out_ = out.values  # Fallback to using .values if we can't guarantee that .to_numpy() is not a copy
+            out = to_numpy(out)
 
         casting_rule = 'same_kind' if allow_casting else 'safe'
-        vector = ne.evaluate(new_expr.transformed, local_dict=ld, out=out_, casting=casting_rule)
+        vector = ne.evaluate(new_expr.transformed, local_dict=ld, out=out, casting=casting_rule)
         return Series(vector, index=self.index)
 
     @deprecated(reason='Use `LinkedDataFrame.evaluate()` instead, to avoid confusion over NumExpr semantics')
