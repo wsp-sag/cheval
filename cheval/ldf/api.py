@@ -628,7 +628,15 @@ class LinkedDataFrame(DataFrame):
         for link_name, link_entry in self.__links.items():
             target.__links[link_name] = link_entry.copy(indexer)
 
-    def _take(self, indices, axis=0, is_copy=True):
+    def _take_with_is_copy(self, indices, axis=0):  # pandas >= 1.0.x
+        sliced: 'LinkedDataFrame' = super()._take_with_is_copy(indices, axis=axis)
+        if axis == 0:
+            self.__subset_links(sliced, indices)
+        return sliced
+
+    # TODO: Figure out what pandas 0.25.x does...
+
+    def _take(self, indices, axis=0, is_copy=True):  # pandas <= 0.24.x
         sliced: 'LinkedDataFrame' = super()._take(indices, axis=axis, is_copy=is_copy)
         if axis == 0:
             self.__subset_links(sliced, indices)
