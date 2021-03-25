@@ -10,7 +10,7 @@ from .parsing.expr_items import ChainTuple
 from .parsing.expressions import Expression
 from .ldf import LinkedDataFrame
 from .exceptions import ModelNotReadyError
-from .misc import convert_series
+from .utils import convert_series, to_numpy
 if TYPE_CHECKING:
     from .model import ChoiceModel
 
@@ -435,14 +435,12 @@ class MatrixSymbol(AbstractSymbol):
             cols_match = data.columns is cols or cols.equals(data.columns)
 
             if rows_match and cols_match:
-                self._matrix = data.values
+                self._matrix = to_numpy(data)
             else:
-                '''
-                Try to manually control the amount of excess RAM needed for partial utilities, as Pandas reindex()
-                is quite hungry. This is important to keep this feature scalable.
-                '''
+                # Try to manually control the amount of excess RAM needed for partial utilities, as Pandas reindex()
+                # is quite hungry. This is important to keep this feature scalable.
 
-                matrix = np.full([len(rows), len(cols)], self._fill_value, dtype=data.values.dtype)
+                matrix = np.full([len(rows), len(cols)], self._fill_value, dtype=to_numpy(data).dtype)
                 if not cols_match:
                     assert self._reindex_cols
                     col_indexer = cols.get_indexer(data.columns)

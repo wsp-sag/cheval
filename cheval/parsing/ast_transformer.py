@@ -6,7 +6,6 @@ from collections import deque
 
 import astor
 import numpy as np
-import pandas as pd
 from numexpr import expressions as nee
 
 from .exceptions import UnsupportedSyntaxError
@@ -27,7 +26,7 @@ Number = Union[int, float, np.float64]
 
 class ExpressionParser(ast.NodeTransformer):
 
-    def __init__(self, prior_simple: Set[str]=None, prior_chained: Set[str]=None, mode=EvaluationMode.UTILITIES):
+    def __init__(self, prior_simple: Set[str] = None, prior_chained: Set[str] = None, mode=EvaluationMode.UTILITIES):
         self.mode: EvaluationMode = mode
 
         self.dict_literals: Dict[str, Dict[tuple, Number]] = {}
@@ -50,7 +49,8 @@ class ExpressionParser(ast.NodeTransformer):
 
     # region Required transformations for NumExpr
 
-    def visit_str(self, node):
+    @staticmethod
+    def visit_str(node):
         # Converts text-strings to NumExpr-supported byte-strings
         return ast.Bytes(node.s.encode())
 
@@ -106,7 +106,6 @@ class ExpressionParser(ast.NodeTransformer):
         for new_right in new_nodes[2:]:
             bin_op = ast.BinOp(left=bin_op, right=new_right, op=ast.BitAnd())
         return bin_op
-
 
     def visit_call(self, node):
         func_node = node.func
@@ -166,7 +165,8 @@ class ExpressionParser(ast.NodeTransformer):
                 resovled_keys.append(converted[0])  # Convert to singleton for consistency
             elif length <= max_level:
                 # Applies to top-level
-                for _ in range(max_level - length): converted.append('.')
+                for _ in range(max_level - length):
+                    converted.append('.')
                 resovled_keys.append(tuple(converted))
             else:
                 raise NotImplementedError("This should never happen. Length=%s Max length=%s" % (length, max_level))
@@ -260,8 +260,10 @@ class ExpressionParser(ast.NodeTransformer):
         if func_name not in _SUPPORTED_AGGREGATIONS:
             raise UnsupportedSyntaxError("Aggregation method '%s' is not supported." % func_name)
 
-        if not hasattr(call_node, 'starargs'): call_node.starargs = None
-        if not hasattr(call_node, 'kwargs'): call_node.kwargs = None
+        if not hasattr(call_node, 'starargs'):
+            call_node.starargs = None
+        if not hasattr(call_node, 'kwargs'):
+            call_node.kwargs = None
 
         if len(call_node.keywords) > 0:
             raise UnsupportedSyntaxError("Keyword args are not supported inside aggregations")

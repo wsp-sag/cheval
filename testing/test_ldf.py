@@ -1,26 +1,110 @@
-import numpy as np
 import pandas as pd
+from pandas.testing import assert_series_equal, assert_frame_equal
 
 from ..cheval import LinkedDataFrame
 
+vehicles_data = {
+    'household_id': [0, 0, 1, 2, 3],
+    'vehicle_id': [0, 1, 0, 0, 0],
+    'manufacturer': ['Honda', 'Ford', 'Ford', 'Toyota', 'Honda'],
+    'model_year': [2009, 2005, 2015, 2011, 2013],
+    'km_travelled': [103236, 134981, 19015, 75795, 54573]
+}
+
+households_data = {
+    'household_id': [0, 1, 2, 3],
+    'dwelling_type': ['house', 'apartment', 'house', 'house'],
+    'drivers': [4, 1, 2, 3]
+}
+
 
 def test_link_to():
-    households_data = {
-        'household_id': [14, 63, 61, 60, 33, 56, 58, 64, 10, 24],
-        'income_class': [4, 3, 1, 1, 4, 6, 2, 1, 4, 6]
-    }
-    persons_list = {
-        'household_id': [60, 33, 58, 64, 63, 61, 61, 14, 56, 56, 56, 10, 24, 56, 61, 61],
-        'person_id': [1, 1, 1, 1, 1, 1, 2, 1, 1, 2, 3, 1, 1, 4, 3, 4]
-    }
+    vehicles = LinkedDataFrame(vehicles_data)
+    households = LinkedDataFrame(households_data)
 
-    hh_df = LinkedDataFrame(households_data)
-    pers_df = LinkedDataFrame(persons_list)
+    vehicles.link_to(households, 'household', on='household_id')
+    households.link_to(vehicles, 'vehicles', on='household_id')
 
-    pers_df.link_to(hh_df, 'household', on='household_id')
+    test_result = households.vehicles.sum("km_travelled")
 
-    result = pd.Series(
-        {0: 1, 1: 4, 2: 2, 3: 1, 4: 3, 5: 1, 6: 1, 7: 4, 8: 6, 9: 6, 10: 6, 11: 4, 12: 6, 13: 6, 14: 1, 15: 1}
-    )
+    expected_result = pd.Series({0: 238217, 1: 19015, 2: 75795, 3: 54573})
 
-    assert np.all(pers_df.household.income_class == result)
+    assert_series_equal(test_result, expected_result)
+
+
+def test_slicing():
+    vehicles = LinkedDataFrame(vehicles_data)
+    households = LinkedDataFrame(households_data)
+
+    vehicles.link_to(households, 'household', on='household_id')
+    households.link_to(vehicles, 'vehicles', on='household_id')
+
+    mask = vehicles['household_id'] == 0
+    vehicles_subset = vehicles.loc[mask].copy()
+    vehicles_subset['dwelling_type'] = vehicles_subset.household.dwelling_type
+
+    test_result = vehicles_subset['dwelling_type']
+
+    expected_result = pd.Series({0: 'house', 1: 'house'}, name='dwelling_type')
+
+    assert_series_equal(test_result, expected_result)
+
+
+def test_evaluate():
+    vehicles = LinkedDataFrame(vehicles_data)
+    households = LinkedDataFrame(households_data)
+
+    vehicles.link_to(households, 'household', on='household_id')
+    households.link_to(vehicles, 'vehicles', on='household_id')
+
+    vehicles['multiple_drivers'] = False
+    vehicles.evaluate('where(household.drivers > 1, True, False)', out=vehicles['multiple_drivers'])
+
+    test_result = vehicles['multiple_drivers']
+
+    expected_result = pd.Series({0: True, 1: True, 2: False, 3: True, 4: True}, name='multiple_drivers')
+
+    assert_series_equal(test_result, expected_result)
+
+
+def test_choice_model_evaluate():
+    assert False  # TODO
+
+
+def test_link_summary():
+    vehicles = LinkedDataFrame(vehicles_data)
+    households = LinkedDataFrame(households_data)
+
+    vehicles.link_to(households, 'household', on='household_id')
+    households.link_to(vehicles, 'vehicles', on='household_id')
+
+    test_result = households.link_summary()
+
+    expected_result = pd.DataFrame({
+        'target_shape': {'vehicles': '(5, 5)'}, 'on_self': {'vehicles': "From columns: ['household_id']"},
+        'on_other': {'vehicles': "From columns: ['household_id']"}, 'chained': {'vehicles': True},
+        'aggregation': {'vehicles': True}, 'preindexed': {'vehicles': True}
+    })
+    expected_result.index.name = 'name'
+
+    assert_frame_equal(test_result, expected_result)
+
+
+def test_pivot_table():
+    vehicles = LinkedDataFrame(vehicles_data)
+    households = LinkedDataFrame(households_data)
+
+    vehicles.link_to(households, 'household', on='household_id')
+    households.link_to(vehicles, 'vehicles', on='household_id')
+
+    test_result = vehicles.pivot_table(values='vehicle_id', index='manufacturer', columns='household.dwelling_type',
+                                       aggfunc='count', fill_value=0)  # TODO: fails if margins=True, need to fix
+    test_result.columns = test_result.columns.astype(str)
+
+    expected_result = pd.DataFrame({
+        'apartment': {'Ford': 1, 'Honda': 0, 'Toyota': 0}, 'house': {'Ford': 1, 'Honda': 2, 'Toyota': 1}
+    })
+    expected_result.index.name = 'manufacturer'
+    expected_result.columns.name = 'temp_0'
+
+    assert_frame_equal(test_result, expected_result)

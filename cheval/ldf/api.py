@@ -1,23 +1,22 @@
 """Top-level API, including the main LinkedDataFrame class"""
-from typing import List, Dict, Union, Deque, Tuple, Callable, Any, Optional, Set, Hashable
-from collections import deque
-
-from pandas import DataFrame, Series, Index, MultiIndex
-import pandas as pd
-from numpy import ndarray
-import numpy as np
 import attr
-import numexpr as ne
+from collections import deque
 from deprecated import deprecated
+import numexpr as ne
+import numpy as np
+import pandas as pd
+from pandas import DataFrame, Series, Index, MultiIndex
+from typing import Any, Dict, Deque, Hashable, List, Optional, Set, Tuple, Type, Union
 
 from .constants import LinkageSpecificationError, LinkAggregationRequired
 from .missing_data import SeriesFillManager, infer_dtype, PandasDtype
+from ..parsing.constants import NAN_STR, NAN_VAL, NEG_INF_STR, NEG_INF_VAL
 from ..parsing.expressions import Expression
 from ..parsing.expr_items import EvaluationMode
-from ..parsing.constants import *
-from ..misc import convert_series
+from ..utils import convert_series, to_numpy
 
-_FillFunctionType = Callable[[Series], Union[int, float, bool, str]]
+_LabelType = Union[str, List[str]]
+
 _NUMERIC_AGGREGATIONS = {'max', 'min', 'mean', 'median', 'prod', 'std', 'sum', 'var', 'quantile'}
 _NON_NUMERIC_AGGREGATIONS = {'count', 'first', 'last', 'nth'}
 _SUPPORTED_AGGREGATIONS = sorted(_NUMERIC_AGGREGATIONS | _NON_NUMERIC_AGGREGATIONS)
@@ -25,10 +24,11 @@ _NUMERIC_TYPES = {PandasDtype.INT_NAME, PandasDtype.UINT_NAME, PandasDtype.FLOAT
 
 
 class _IndexMeta:
+
     labels: List[str] = attr.ib(converter=lambda x: [x] if isinstance(x, str) else list(x))
     from_row_labels: bool = attr.ib()
 
-    def __init__(self, labels=None, from_row_labels=True):
+    def __init__(self, labels: Union[str, List[str]] = None, from_row_labels: bool = True):
         if isinstance(labels, str):
             labels = [labels]
         elif labels is None:
@@ -36,21 +36,19 @@ class _IndexMeta:
         self.labels = labels
         self.from_row_labels = from_row_labels
 
-    def validate(self, frame: DataFrame):
-        if self.labels is None: return  # Use the index, which is always available
-        frame_items = set(frame.index.levels) if self.from_row_labels else set(frame.columns)
-        item_name = "index" if self.from_row_labels else "columns"
+    def __str__(self):
+        if self.from_row_labels:
+            return f'From index: {self.labels}'
+        return f'From columns: {self.labels}'
 
-        for name in self.labels:
-            assert name in frame_items, f"Could not find '{name}' in the {item_name}"
-
-    def get_indexer(self, frame: DataFrame) -> Index:
-        if self.labels is None: return frame.index
+    def get_indexer(self, frame: DataFrame) -> Union[Index, MultiIndex]:
+        if self.labels is None:
+            return frame.index
 
         arrays = []
         if self.from_row_labels:
             if len(self.labels) > frame.index.nlevels:
-                raise LinkageSpecificationError("Cannot specify more levels than in the index")
+                raise LinkageSpecificationError('Cannot specify more levels than in the index')
 
             for label in self.labels:
                 # `get_level_values` works on both Index and MultiIndex objects and accepts both
@@ -58,26 +56,32 @@ class _IndexMeta:
                 try:
                     arrays.append(frame.index.get_level_values(label))
                 except KeyError:
-                    raise LinkageSpecificationError(f"Level '{label}' not in the index")
+                    raise LinkageSpecificationError(f'Level `{label}` not in the index')
         else:
             for label in self.labels:
                 if label not in frame:
-                    raise LinkageSpecificationError(f"Column '{label}' not in the columns")
-                arrays.append(frame[label].values)
+                    raise LinkageSpecificationError(f'Column `{label}` not in the columns')
+                arr = to_numpy(frame[label])
+                arrays.append(arr)
 
         if len(arrays) == 1:
             name = self.labels[0]
             return Index(arrays[0], name=name)
         return MultiIndex.from_arrays(arrays, names=self.labels)
 
-    def __str__(self):
-        if self.from_row_labels:
-            return f"From index: {self.labels}"
-        return f"From columns: {self.labels}"
-
     def nlevels(self, frame: DataFrame) -> int:
-        if self.labels is None: return frame.index.nlevels
+        if self.labels is None:
+            return frame.index.nlevels
         return len(self.labels)
+
+    def validate(self, frame: DataFrame):
+        if self.labels is None:
+            return  # Use the index, which is always available
+        frame_items = set(frame.index.levels) if self.from_row_labels else set(frame.columns)
+        item_name = 'index' if self.from_row_labels else 'columns'
+
+        for name in self.labels:
+            assert name in frame_items, f'Could not find `{name}` in the {item_name}'
 
 
 class _LinkMeta:
@@ -88,13 +92,13 @@ class _LinkMeta:
     self_meta: _IndexMeta
     other_meta: _IndexMeta
 
-    flat_indexer: Optional[ndarray]
-    other_grouper: Optional[ndarray]
-    missing_indices: Optional[Union[ndarray, list]]
+    flat_indexer: Optional[np.ndarray]
+    other_grouper: Optional[np.ndarray]
+    missing_indices: Optional[Union[np.ndarray, List]]
 
     @staticmethod
-    def create(owner, other, self_labels: Union[List[str], str], self_from_row_labels: bool,
-               other_labels: Union[List[str], str], other_from_row_labels: bool,
+    def create(owner: 'LinkedDataFrame', other: Union['LinkedDataFrame', DataFrame], self_labels: Union[List[str], str],
+               self_from_row_labels: bool, other_labels: Union[List[str], str], other_from_row_labels: bool,
                precompute: bool = True) -> '_LinkMeta':
         self_meta = _IndexMeta(self_labels, self_from_row_labels)
         other_meta = _IndexMeta(other_labels, other_from_row_labels)
@@ -133,7 +137,7 @@ class _LinkMeta:
         elif other_unique:
             flag = False
         else:
-            raise RuntimeError("Many-to-many links are not permitted")
+            raise RuntimeError('Many-to-many links are not permitted')
         self.aggregation_required = flag
 
         if precompute:
@@ -147,33 +151,26 @@ class _LinkMeta:
             group_ints, group_order = other_indexer.factorize()
             self.other_grouper = group_ints
             self.flat_indexer, self.missing_indices = group_order.get_indexer_non_unique(self_indexer)
-
-        else:
-            # Performance-tuned fast paths for constructing indexers
-
-            # Indexers are identical
-            if self_indexer.equals(other_indexer):
+        else:  # Performance-tuned fast paths for constructing indexers
+            if self_indexer.equals(other_indexer):  # Indexers are identical
                 self.flat_indexer = np.arange(len(other_indexer))
                 self.missing_indices = np.array([], dtype=int)
-
-            # No missing values
-            elif len(self_indexer.difference(other_indexer)) == 0:  # Taking the difference is faster than all(.isin())
+            elif len(self_indexer.difference(other_indexer)) == 0:  # No missing values
+                # Taking the difference is faster than `all(.isin())`
                 self.missing_indices = np.array([], dtype=int)
                 self.flat_indexer = other_indexer.get_indexer(self_indexer)
-
-            # All other cases
-            else:
+            else:  # All other cases
                 self.flat_indexer, self.missing_indices = other_indexer.get_indexer_non_unique(self_indexer)
-
-    @property
-    def indexer_and_missing(self) -> Tuple[ndarray, ndarray]:
-        if self.flat_indexer is None or self.missing_indices is None:
-            self.precompute()
-        return self.flat_indexer, self.missing_indices
 
     @property
     def chained(self) -> bool:
         return self._other_has_links
+
+    @property
+    def indexer_and_missing(self) -> Tuple[np.ndarray, np.ndarray]:
+        if (self.flat_indexer is None) or (self.missing_indices is None):
+            self.precompute()
+        return self.flat_indexer, self.missing_indices
 
     def precompute(self):
         """Top-level method to precompute the indexer"""
@@ -188,15 +185,12 @@ class _LinkMeta:
         copied = self.copy_meta()
 
         if self.flat_indexer is not None:
-            if indices is not None:
-                copied.flat_indexer = self.flat_indexer[indices]
-            else:
-                copied.flat_indexer = self.flat_indexer
+            copied.flat_indexer = self.flat_indexer[indices] if indices is not None else self.flat_indexer
 
         if isinstance(self.missing_indices, list):
             copied.missing_indices = []
-        elif isinstance(self.missing_indices, ndarray):
-            if indices is not None and len(self.missing_indices) > 0:
+        elif isinstance(self.missing_indices, np.ndarray):
+            if (indices is not None) and (len(self.missing_indices) > 0):
                 mask = np.isin(self.missing_indices, indices)
                 copied.missing_indices = self.missing_indices[mask]
             else:
@@ -208,71 +202,72 @@ class _LinkMeta:
         return copied
 
 
-_LabelType = Union[str, List[str]]
-
-
 class LinkedDataFrame(DataFrame):
-    __links: Dict[str, _LinkMeta]
-    __identified_links: Set[str]
-    __class_filler: SeriesFillManager = SeriesFillManager()
-    __instance_filler: SeriesFillManager
-    __column_fills: dict
+
+    _links: Dict[str, _LinkMeta]
+    _identified_links: Set[str]
+    _class_filler: SeriesFillManager = SeriesFillManager()
+    _instance_filler: SeriesFillManager
+    _column_fills: dict
+
+    # temporary properties
+    _internal_names = DataFrame._internal_names + ['_links', '_identified_links', '_instance_filler', '_column_fills']
+    _internal_names_set = set(_internal_names)
+
+    # normal properties
+    _metadata = []
 
     # region Static Readers
 
     @staticmethod
     def read_csv(*args, **kwargs) -> 'LinkedDataFrame':
-        """Wrapper for DataFrame.read_csv() that returns a LinkedDataFrame instead"""
+        """Wrapper for pd.read_csv() that returns a LinkedDataFrame instead"""
         return LinkedDataFrame(pd.read_csv(*args, **kwargs))
 
     @staticmethod
     def read_table(*args, **kwargs) -> 'LinkedDataFrame':
-        """Wrapper for DataFrame.read_table() that returns a LinkedDataFrame instead"""
+        """Wrapper for pd.read_table() that returns a LinkedDataFrame instead"""
         return LinkedDataFrame(pd.read_table(*args, **kwargs))
 
     @staticmethod
     def read_clipboard(*args, **kwargs) -> 'LinkedDataFrame':
-        """Wrapper for DataFrame.read_clipboard() that returns a LinkedDataFrame instead"""
+        """Wrapper for pd.read_clipboard() that returns a LinkedDataFrame instead"""
         return LinkedDataFrame(pd.read_clipboard(*args, **kwargs))
 
     @staticmethod
     def read_excel(*args, **kwargs) -> 'LinkedDataFrame':
-        """Wrapper for DataFrame.read_excel() that returns a LinkedDataFrame instead"""
+        """Wrapper for pd.read_excel() that returns a LinkedDataFrame instead"""
         return LinkedDataFrame(pd.read_excel(*args, **kwargs))
 
     @staticmethod
     def read_fwf(*args, **kwargs) -> 'LinkedDataFrame':
-        """Wrapper for DataFrame.read_fwf() that returns a LinkedDataFrame instead"""
+        """Wrapper for pd.read_fwf() that returns a LinkedDataFrame instead"""
         return LinkedDataFrame(pd.read_fwf(*args, **kwargs))
 
     @staticmethod
     def read_(name, *args, **kwargs) -> 'LinkedDataFrame':
-        func = getattr(pd, f"read_{name}")
+        func = getattr(pd, f'read_{name}')
         return LinkedDataFrame(func(*args, **kwargs))
 
     # endregion
 
     @property
-    def _constructor(self):
+    def _constructor(self) -> Type['LinkedDataFrame']:
+        # see https://pandas.pydata.org/docs/development/extending.html#override-constructor-properties
         return LinkedDataFrame
-
-    # _internal_names = ['__links']
-    # _internal_names_set = set(_internal_names)
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
 
-        # Pandas gives me grief for trying to add sub-attributes, so I'm doing the this hard way
-        object.__setattr__(self, '_LinkedDataFrame__links', {})
-        object.__setattr__(self, '_LinkedDataFrame__identified_links', set())
-        object.__setattr__(self, '_LinkedDataFrame__instance_filler', SeriesFillManager())
-        object.__setattr__(self, '_LinkedDataFrame__column_fills', {})
+        object.__setattr__(self, '_links', {})
+        object.__setattr__(self, '_identified_links', set())
+        object.__setattr__(self, '_instance_filler', SeriesFillManager())
+        object.__setattr__(self, '_column_fills', {})
 
     def link_to(self, other: DataFrame, name: str, *, on: _LabelType = None, levels: _LabelType = None,
                 on_self: _LabelType = None, on_other: _LabelType = None, self_levels: _LabelType = None,
                 other_levels: _LabelType = None, precompute: bool = True) -> LinkAggregationRequired:
-        """
-        Creates a new link from this DataFrame to another, assigning it to the given name.
+        """Creates a new link from this DataFrame to another, assigning it to the given name.
 
         The relationship between the left-hand-side (this DataFrame itself) and the right-hand-side (the other
         DataFrame) must be pre-specified to create the link. The relationship can be based on the index (or a subset of
@@ -282,33 +277,31 @@ class LinkedDataFrame(DataFrame):
         of the side's index.
 
         Regardless of whether the join is based on an index or columns, the same number of levels must be given. For
-        example, if the left-hand indexer uses two levels from the index, then the right-hand indexer must also use
-        two levels in the index or two columns.s
+        example, if the left-hand indexer uses two levels from the index, then the right-hand indexer must also use two
+        levels in the index or two columns.
 
         When the link is established, it is tested whether the relationship is one-to-one or many-to-one (the latter
         indicates that aggregation is required). The result of this test is returned by this method.
 
         Args:
             other: The table to join.
-            name:  The alias (symbolic name) of the new link. If Pythonic, this will show up as an
-                attribute; otherwise the link will need to be accessed using [].
-            on: If given, the join will be made on the provided **column(s)** in both this
-                and the other DataFrame. This arg cannot be used with `levels` and will override `on_self` and
-                `on_other`.
-            on_self: If provided, the left-hand side of the join will be made on the
-                column(s) in this DataFrame. This arg cannot be used with `self_levels`.
-            on_other: If provided, th right-hand-side of the join will be made on the
-                column(s) in the other DataFrame. This arg cannot be used with `other_levels`.
-            levels: If provided, the join will be made on the given **level(s)**
-                in both this and the other DataFrame's index. It can be specified as an integer or a string,
-                if both indexes have the same level names. This arg cannot be used with `on` and will override
-                `self_levels` and `other_levels`.
-            self_levels: If provided, the left-hand-side of the join will be made on the
-                level(s) in this DataFrame. This arg cannot be used with `on_self`.
-            other_levels: If provided, the right-hand-side of the join will be made on the
-                level(s) in the other DataFrame. This arg cannot be used with `on_other`.
-            precompute: Link items store indexer arrays which allow for very fast lookup, but can take a
-                significant amount of time to compute (especially when two or more columns are used for the join). When
+            name: The alias (symbolic name) of the new link. If Pythonic, this will show up as an attribute; otherwise
+                the link will need to be accessed using [].
+            on: If given, the join will be made on the provided **column(s)** in both this and the other DataFrame. This
+                arg cannot be used with `levels` and will override `on_self` and `on_other`.
+            on_self: If provided, the left-hand side of the join will be made on the column(s) in this DataFrame. This
+                arg cannot be used with `self_levels`.
+            on_other: If provided, th right-hand-side of the join will be made on the column(s) in the other DataFrame.
+                This arg cannot be used with `other_levels`.
+            levels: If provided, the join will be made on the given **level(s)** in both this and the other DataFrame's
+                index. It can be specified as an integer or a string, if both indexes have the same level names. This
+                arg cannot be used with `on` and will override `self_levels` and `other_levels`.
+            self_levels: If provided, the left-hand-side of the join will be made on the level(s) in this DataFrame.
+                This arg cannot be used with `on_self`.
+            other_levels: If provided, the right-hand-side of the join will be made on the level(s) in the other
+                DataFrame. This arg cannot be used with `on_other`.
+            precompute: Link items store indexer arrays which allow for very fast lookup, but can take a significant
+                amount of time to compute (especially when two or more columns are used for the join). When
                 precompute is set to True, this indexing operation occurs within the link_to() method. Otherwise,
                 indexing is done when first a link is requested, or manually using LinkedDataFrame.compute_indexer().
 
@@ -318,16 +311,15 @@ class LinkedDataFrame(DataFrame):
         Raises:
             LinkageSpecificationError: For mis-specified linkages.
             KeyError: For linkages using columns or level not in this or the other DataFrame.
-
         """
         if other.columns.nlevels != 1:
-            raise NotImplementedError("Cannot link to tables with multi-level columns")
+            raise NotImplementedError('Cannot link to tables with multi-level columns')
 
         on_not_none = on is not None
         levels_not_none = levels is not None
 
         if on_not_none and levels_not_none:
-            raise LinkageSpecificationError("Can only specify one of 'on=' or 'levels='")
+            raise LinkageSpecificationError('Can only specify one of `on=` or `levels=`')
 
         if on_not_none:
             on_self = on
@@ -337,14 +329,14 @@ class LinkedDataFrame(DataFrame):
             self_levels = levels
             other_levels = levels
 
-        if on_self is not None and self_levels is not None:
+        if (on_self is not None) and (self_levels is not None):
             raise LinkageSpecificationError()
         elif self_levels is not None:
             self_labels, self_from_index = self_levels, True
         else:
             self_labels, self_from_index = on_self, False
 
-        if on_other is not None and other_levels is not None:
+        if (on_other is not None) and (other_levels is not None):
             raise LinkageSpecificationError()
         elif other_levels is not None:
             other_labels, other_from_index = other_levels, True
@@ -353,22 +345,21 @@ class LinkedDataFrame(DataFrame):
 
         link_data = _LinkMeta.create(self, other, self_labels, self_from_index, other_labels, other_from_index,
                                      precompute)
-        self.__links[name] = link_data
+        self._links[name] = link_data
         if name.isidentifier():
-            self.__identified_links.add(name)
+            self._identified_links.add(name)
 
         return LinkAggregationRequired.YES if link_data.aggregation_required else LinkAggregationRequired.NO
 
     def __dir__(self):
-        """ Override dir() to show links as valid attributes """
-        return super().__dir__() + sorted(self.__identified_links)
+        """Override dir() to show links as valid attributes"""
+        return super().__dir__() + sorted(self._identified_links)
 
     # region Fill value management
 
     def set_column_fill(self, column, value):
-        """
-        Set a specific fill value for a column in this LinkedDataFrame. This is only used when this frame is
-        the TARGET of a link (e.g. some_other_table.link_to(this_table,...).
+        """Set a specific fill value for a column in this LinkedDataFrame. This is only used when this frame is the
+        TARGET of a link (e.g. some_other_table.link_to(this_table,...).
 
         Args:
             column: The column name. Must currently exist in this frame, otherwise KeyError gets raised.
@@ -379,50 +370,48 @@ class LinkedDataFrame(DataFrame):
         """
         if column not in self.columns:
             raise KeyError(column)
-        self.__column_fills[column] = value
+        self._column_fills[column] = value
 
-    '''
-    The pattern "self=None" allows these methods to have different behaviour depending on whether called from
-    the class (statically) or from an instance.
-    '''
+    # The pattern "self=None" allows these methods to have different behaviour depending on whether called from the
+    # class (statically) or from an instance.
 
     def set_fill_defaults(self=None, **kwargs):
-        filler = self.__instance_filler if self is not None else LinkedDataFrame.__class_filler
+        filler = self._instance_filler if self is not None else LinkedDataFrame._class_filler
         filler.set_fill_defaults(**kwargs)
 
     def temporary_fill_defaults(self=None, **kwargs):
-        filler = self.__instance_filler if self is not None else LinkedDataFrame.__class_filler
+        filler = self._instance_filler if self is not None else LinkedDataFrame._class_filler
         yield from filler.temporary_fill_defaults(**kwargs)
 
     def reset_fill_defaults(self=None):
-        filler = self.__instance_filler if self is not None else LinkedDataFrame.__class_filler
+        filler = self._instance_filler if self is not None else LinkedDataFrame._class_filler
         filler.reset_fill_defaults()
 
     @classmethod
     def _get_class_fill(cls, series: Series) -> Any:
-        return cls.__class_filler.get_fill(series)
+        return cls._class_filler.get_fill(series)
 
     def _get_fill(self, series: Series, series_name) -> Any:
-        if series_name in self.__column_fills:
-            return self.__column_fills[series_name]
-        return self.__instance_filler.get_fill(series)
+        if series_name in self._column_fills:
+            return self._column_fills[series_name]
+        return self._instance_filler.get_fill(series)
 
     # endregion
 
     # region Link lookups
 
     def __getitem__(self, item):
-        if isinstance(item, Hashable) and item in self.__links:
+        if isinstance(item, Hashable) and item in self._links:
             return self._init_link(item)
         return super().__getitem__(item)
 
     def __getattr__(self, item):
-        if isinstance(item, Hashable) and item in self.__links:
+        if isinstance(item, Hashable) and item in self._links:
             return self._init_link(item)
         return super().__getattr__(item)
 
     def _init_link(self, item):
-        link = self.__links[item]
+        link = self._links[item]
         history = deque([link])
 
         if link.aggregation_required:
@@ -433,19 +422,19 @@ class LinkedDataFrame(DataFrame):
             return self._LinkLeaf(self.index, history)
 
     def _init_link_history(self, item):
-        meta = self.__links[item]
+        meta = self._links[item]
         history = deque([meta])
         node = self._LinkNode(self.index, history)
         return node
 
     def _link_names(self):
-        return list(self.__links.keys())
+        return list(self._links.keys())
 
     def _has_link(self, item):
-        return item in self.__links
+        return item in self._links
 
     def _get_link(self, item) -> _LinkMeta:
-        return self.__links[item]
+        return self._links[item]
 
     # endregion
 
@@ -464,10 +453,9 @@ class LinkedDataFrame(DataFrame):
         def _top(self) -> _LinkMeta:
             return self._history[0]
 
-        def _resolve_history(self, series: ndarray, fill_value):
+        def _resolve_history(self, series: np.ndarray, fill_value):
             for meta in self._history:
                 # Get the indexing data
-                meta: _LinkMeta = meta
                 indexer, missing = meta.indexer_and_missing
 
                 series = series[indexer]  # Reorder/duplicate/drop the raw array
@@ -492,7 +480,8 @@ class LinkedDataFrame(DataFrame):
             df = top.other
             series = df[item]
             fill_value = LinkedDataFrame._get_class_fill(series)
-            return self._resolve_history(series.values, fill_value)
+            arr = to_numpy(series)
+            return self._resolve_history(arr, fill_value)
 
     class _LinkNode(_BaseNode):
         """One-to-one or one-to-many node for LinkedDataFrames"""
@@ -519,14 +508,16 @@ class LinkedDataFrame(DataFrame):
 
             series = df[item]
             fill_value = df._get_fill(series, item)
-            return self._resolve_history(series.values, fill_value)
+            arr = to_numpy(series)
+            return self._resolve_history(arr, fill_value)
 
     class _LeafAggregation(_BaseNode):
         def __dir__(self):
             return _SUPPORTED_AGGREGATIONS[:]
 
         def __getattr__(self, item):
-            if item not in _SUPPORTED_AGGREGATIONS: raise AttributeError(item)
+            if item not in _SUPPORTED_AGGREGATIONS:
+                raise AttributeError(item)
             return self._Aggregator(self, item)
 
         class _Aggregator:
@@ -536,14 +527,13 @@ class LinkedDataFrame(DataFrame):
                 self._allow_nonnumeric = func_name in _NON_NUMERIC_AGGREGATIONS
 
             def __repr__(self):
-                return f"<LinkAggregator[{self._func_name}]>"
+                return f'<LinkAggregator[{self._func_name}]>'
 
-            def __call__(self, expr="1", *, int_fill=-1, **kwargs):
+            def __call__(self, expr='1', *, int_fill=-1, **kwargs):
                 top = self._owner._top
                 df = top.other
 
-                if expr in df.columns:
-                    # Shortcut if the expression just refers to a column name
+                if expr in df.columns:  # Shortcut if the expression just refers to a column name
                     evaluation = df[expr]
                 else:
                     try:
@@ -554,9 +544,9 @@ class LinkedDataFrame(DataFrame):
                     evaluation = pd.Series(evaluation, index=df.index)
 
                 series_type = infer_dtype(evaluation)
-                if not self._allow_nonnumeric and series_type not in _NUMERIC_TYPES:
-                    raise RuntimeError(f"Results of evaluation '{expr}' is non-numeric type {series_type}, which is not"
-                                       f" allowed for aggregation function '{self._func_name}'")
+                if not self._allow_nonnumeric and (series_type not in _NUMERIC_TYPES):
+                    raise RuntimeError(f'Results of evaluation `{expr}` is non-numeric type {series_type}, which is not'
+                                       f' allowed for aggregation function `{self._func_name}`')
 
                 # A fill value of NaN is only disallowed for integer types
                 fill_value = np.nan
@@ -567,14 +557,14 @@ class LinkedDataFrame(DataFrame):
 
                 # Aggregate and align the result
                 grouper = top.other_grouper
-                grouped_result = getattr(evaluation.groupby(grouper), self._func_name)(**kwargs).values
+                grouped_result = to_numpy(getattr(evaluation.groupby(grouper), self._func_name)(**kwargs))
 
                 return self._owner._resolve_history(grouped_result, fill_value)
 
     # endregion
 
     # region Slicing functions
-    '''
+    """
     Slicing a LinkedDataFrame returns another LinkedDataFrame with its links intact in most cases. It is safe to assume
     that, when slicing along the rows (axis 0), link data is being preserved. When slicing along the columns (axis 1),
     this is not always the case, particularly when excluding columns that are needed for linkages. In such cases, the
@@ -591,11 +581,11 @@ class LinkedDataFrame(DataFrame):
     links were to be re-computed, this would slow down ALL slicing considerably - 1000x times at least. Conversely,
     dropping the linkage indexer negates the advantage of precomputing an indexer in the first place.
 
-    Short of changing the Pandas internals to pass an indexer to the __finalize__() method (a monumental task), the
-    solution implemented here is to support a subset of 0-axis indexing operations by overriding the relevant methods
-    that call __finalize__(). For these common operations, slicing and link-indexing will both be fast - the best of
-    both worlds. The cost is that such operations will need to be tested carefully to catch any changes to the Pandas
-    internals in the future.
+    Short of changing the Pandas internals to pass an indexer to the __finalize__() method (a monumental, if not
+    impossible, task), the solution implemented here is to support a subset of 0-axis indexing operations by overriding
+    the relevant methods that call __finalize__(). For these common operations, slicing and link-indexing will both be
+    fast - the best of both worlds. The cost is that such operations will need to be tested carefully to catch any
+    changes to the Pandas internals in the future.
 
     Supported operations:
      - .loc[[True, False, True, True, False...]] (Boolean indexing)
@@ -607,45 +597,56 @@ class LinkedDataFrame(DataFrame):
      - .groupby() iteration (for group_id, frame_subset in frame.groupby(...)). This should also capture .get_group()
 
     Peter Kucirek November 22 2018
-    '''
+
+    ---
+
+    Note: the following function in this section are intended to override the original functions in pandas. Our
+    functions are intended to inject additional LinkedDataFrame operations. Depending on your version of pandas, type
+    hinting may raise issues as these functions may be decorated with "@final"... we are just going to ignore that...
+    """
 
     def __finalize__(self, other: 'LinkedDataFrame', method=None, **kwargs):
         # Other is the parent LDF, self is the slice
         super().__finalize__(other, method=method, **kwargs)
 
         # Sometimes, other is not a LDF (e.g. _Concatenator)
-        if not isinstance(other, LinkedDataFrame): return self
+        if not isinstance(other, LinkedDataFrame):
+            return self
 
         # Copy the link metadata
-        for link_name, link in other.__links.items():
-            self.__links[link_name] = link.copy_meta()
+        for link_name, link in other._links.items():
+            self._links[link_name] = link.copy_meta()
 
-        self.__identified_links = other.__identified_links.copy()
+        self._identified_links = other._identified_links.copy()
 
         return self
 
-    def __subset_links(self, target: 'LinkedDataFrame', indexer: ndarray):
-        for link_name, link_entry in self.__links.items():
-            target.__links[link_name] = link_entry.copy(indexer)
+    def __subset_links(self, target: 'LinkedDataFrame', indexer: np.ndarray):
+        for link_name, link_entry in self._links.items():
+            target._links[link_name] = link_entry.copy(indexer)
 
-    def _take(self, indices, axis=0, is_copy=True):
+    def _take_with_is_copy(self, indices, axis=0):  # pandas >= 1.0.x
+        sliced: 'LinkedDataFrame' = super()._take_with_is_copy(indices, axis=axis)
+        if axis == 0:
+            self.__subset_links(sliced, indices)
+        return sliced
+
+    def _take(self, indices, axis=0, is_copy=True):  # pandas < 1.0.x
         sliced: 'LinkedDataFrame' = super()._take(indices, axis=axis, is_copy=is_copy)
         if axis == 0:
             self.__subset_links(sliced, indices)
         return sliced
 
-    def _reindex_with_indexers(self, reindexers, fill_value=None, copy=False,
-                               allow_dups=False):
-        new_frame = super()._reindex_with_indexers(reindexers, fill_value=fill_value, copy=copy,
-                                                   allow_dups=allow_dups)
+    def _reindex_with_indexers(self, reindexers, fill_value=None, copy=False, allow_dups=False):
+        new_frame = super()._reindex_with_indexers(reindexers, fill_value=fill_value, copy=copy, allow_dups=allow_dups)
 
-        if isinstance(new_frame, LinkedDataFrame) and 0 in reindexers:
+        if isinstance(new_frame, LinkedDataFrame) and (0 in reindexers):
             _, indexer = reindexers[0]
             self.__subset_links(new_frame, indexer)
         return new_frame
 
     def _slice(self, slobj, axis=0, kind=None):
-        new_frame = super()._slice(slobj, axis=axis, kind=kind)
+        new_frame = super()._slice(slobj, axis=axis)
         if axis == 0 and isinstance(new_frame, LinkedDataFrame):
             # slobj is not actually an ndarray, but a builtin <slice> Python object. Fortunately, ndarray.__getitem__()
             # supports <slice> objects just as easily as integer indexers, so it just works.
@@ -656,8 +657,8 @@ class LinkedDataFrame(DataFrame):
         copied = super().copy(deep=deep)
 
         # Copy the link data
-        for link_name, link_entry in self.__links.items():
-            copied.__links[link_name] = link_entry.copy()
+        for link_name, link_entry in self._links.items():
+            copied._links[link_name] = link_entry.copy()
 
         return copied
 
@@ -665,9 +666,9 @@ class LinkedDataFrame(DataFrame):
 
     # region Expression evaluation
 
-    def evaluate(self, expr, local_dict: Dict[str, Any] = None, out: Series = None, allow_casting=True, ):
-        """
-        Evaluates a mathematical expression over all the rows in this frame. Very similar to vanilla .eval() in
+    def evaluate(self, expr, local_dict: Dict[str, Any] = None, out: Series = None, allow_casting=True,
+                 ignore_check=False):
+        """Evaluates a mathematical expression over all the rows in this frame. Very similar to vanilla .eval() in
         concept, but supports Cheval-style expression syntax. For example, DataFrame.eval() doesn't support the
         where() function, but LinkedDataFrame.evaluate does. Also supports accessing links (including aggregation)
         inside the expression.
@@ -675,9 +676,11 @@ class LinkedDataFrame(DataFrame):
         Args:
             expr: The expression string to evaluate. Supports a subset of Cheval syntax, excluding dict literals,
                 and "@ <choice_name>" referencing which are particular to the ChoiceModel object.
-            local_dict:
-            out:
-            allow_casting:
+            local_dict: A dictionary that replaces the local operands in current frame.
+            out: An existing Series where the outcome is going to be stored. Useful for avoiding unnecessary new array
+                allocations.
+            allow_casting: A flag to allow for casts within a kind, like float64 to float32.
+            ignore_check: A flag to ignore checking
 
         Returns:
 
@@ -692,10 +695,11 @@ class LinkedDataFrame(DataFrame):
             try:
                 ld[column] = convert_series(self[column], allow_raw=False)
             except KeyError:
-                if column not in ld: raise
+                if column not in ld:
+                    raise
 
         for link_name, chain_symbol in new_expr.chains.items():
-            assert self._has_link(link_name), f"Link '{link_name}' does not exist"
+            assert self._has_link(link_name), f'Link `{link_name}` does not exist'
 
             for substitution, chain_tuple in chain_symbol.items():
                 node = self[link_name]
@@ -709,12 +713,14 @@ class LinkedDataFrame(DataFrame):
 
                 ld[substitution] = convert_series(series)
 
-        if out is not None: out = out.values
+        if out is not None:
+            out = to_numpy(out)
+
         casting_rule = 'same_kind' if allow_casting else 'safe'
         vector = ne.evaluate(new_expr.transformed, local_dict=ld, out=out, casting=casting_rule)
         return Series(vector, index=self.index)
 
-    @deprecated(reason="Use LinkedDataFrame.evaluate() instead, to avoid confusion over NumExpr semantics")
+    @deprecated(reason='Use `LinkedDataFrame.evaluate()` instead, to avoid confusion over NumExpr semantics')
     def eval(self, expr, *args, **kwargs):
         return self.evaluate(expr, *args, **kwargs)
 
@@ -723,8 +729,7 @@ class LinkedDataFrame(DataFrame):
     # region Other methods
 
     def link_summary(self) -> DataFrame:
-        """
-        Produces a table summarizing all outgoing links from this frame.
+        """Produces a table summarizing all outgoing links from this frame.
 
         Returns:
             DataFrame: Has the following columns:
@@ -735,11 +740,10 @@ class LinkedDataFrame(DataFrame):
                 - chained: Flag indicating if the target frame also supports links
                 - aggregation: Flag indicating if the relationship must be aggregated
                 - preindexed: Flag indicating if the relationship has already been indexed.
-
         """
         summary_table = {'name': [], 'target_shape': [], 'on_self': [], 'on_other': [], 'chained': [],
                          'aggregation': [], 'preindexed': []}
-        for name, entry in self.__links.items():
+        for name, entry in self._links.items():
             summary_table['name'].append(name)
             summary_table['target_shape'].append(str(entry.other.shape))
             summary_table['on_self'].append(str(entry.self_meta))
@@ -753,21 +757,18 @@ class LinkedDataFrame(DataFrame):
         return df
 
     def compute_indexers(self, refresh: bool = True):
-        """
-        For all outoing links, compute any missing indexers (precompute=False when calling link_to()), or refresh
+        """For all outgoing links, compute any missing indexers (precompute=False when calling link_to()), or refresh
         already-computed indexers.
 
         Args:
             refresh: If False, indexers will only be computed for links without them. Otherwise, this forces indexers
                 to be re-computed.
         """
-
-        for entry in self.__links.values():
+        for entry in self._links.values():
             if refresh or entry.flat_indexer is None:
                 entry.precompute()
 
-    def pivot_table(self, values=None, index=None, columns=None,
-                    aggfunc='mean', fill_value=None, margins=False,
+    def pivot_table(self, values=None, index=None, columns=None, aggfunc='mean', fill_value=None, margins=False,
                     dropna=True, margins_name='All'):
         temp_columns = []
         try:
@@ -776,24 +777,32 @@ class LinkedDataFrame(DataFrame):
                 new_index = None
             else:
                 for col_name, is_temp in zip(new_index, temp_flags):
-                    if is_temp: temp_columns.append(col_name)
-                if len(new_index) == 1: new_index = new_index[0]
+                    if is_temp:
+                        temp_columns.append(col_name)
+                if len(new_index) == 1:
+                    new_index = new_index[0]
 
             new_columns, temp_flags = self._make_temp_col(columns)
             if new_columns[0] is None:
                 new_columns = None
             else:
                 for col_name, is_temp in zip(new_columns, temp_flags):
-                    if is_temp: temp_columns.append(col_name)
-                if len(new_columns) == 1: new_columns = new_columns[0]
+                    if is_temp:
+                        temp_columns.append(col_name)
+                if len(new_columns) == 1:
+                    new_columns = new_columns[0]
 
             new_values, temp_flags = self._make_temp_col(values)
             if new_values[0] is None:
                 new_values = None
             else:
                 for col_name, is_temp in zip(new_values, temp_flags):
-                    if is_temp: temp_columns.append(col_name)
-                if len(new_values) == 1: new_values = new_values[0]
+                    if is_temp:
+                        temp_columns.append(col_name)
+                if len(new_values) == 1:
+                    new_values = new_values[0]
+
+            # TODO: determine why margins=True causes things to crash...
 
             return super().pivot_table(index=new_index, columns=new_columns, values=new_values, aggfunc=aggfunc,
                                        fill_value=fill_value, margins=margins, dropna=dropna,
@@ -803,7 +812,8 @@ class LinkedDataFrame(DataFrame):
                 del self[c]
 
     def _make_temp_col(self, item: Union[str, List[str]]) -> Tuple[List[Optional[str]], List[bool]]:
-        if item is None: return [None], [False]
+        if item is None:
+            return [None], [False]
 
         item_is_single = isinstance(item, str)
         items = [item] if item_is_single else item
@@ -826,10 +836,8 @@ class LinkedDataFrame(DataFrame):
         return new_columns, flags
 
     def get_link_target(self, name) -> Union[DataFrame, 'LinkedDataFrame']:
-        """
-        Gets the referenced target ("other") of an outbound link. This is useful when the original
-        reference to the targeted frame is no longer available, or to to modify the fill management of that
-        target.
+        """Gets the referenced target ("other") of an outbound link. This is useful when the original reference to the
+        targeted frame is no longer available, or to to modify the fill management of that target.
 
         Args:
             name: The name of the link alias.
@@ -840,8 +848,7 @@ class LinkedDataFrame(DataFrame):
 
         Raises:
             KeyError: When the specified name is not a link.
-
         """
-        return self.__links[name].other
+        return self._links[name].other
 
     # endregion
