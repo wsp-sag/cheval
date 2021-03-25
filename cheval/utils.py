@@ -6,13 +6,13 @@ from typing import Union
 _USE_TO_NUMPY = hasattr(pd.Series, 'to_numpy')
 
 
-def to_numpy(frame_or_series: Union[pd.DataFrame, pd.Series], ignore_check: bool = False) -> np.ndarray:
+def to_numpy(frame_or_series: Union[pd.DataFrame, pd.Series, pd.Index], ignore_check: bool = False) -> np.ndarray:
     """A helper function compatible with all versions of pandas to access numpy arrays. Set `ignore_check=True` to save
     the computational cost of confirming that `.to_numpy()` does not produce a copy of `frame_or_series` values."""
-    arr = frame_or_series.to_numpy() if _USE_TO_NUMPY else frame_or_series.values
+    arr = frame_or_series.to_numpy(copy=False) if _USE_TO_NUMPY else frame_or_series.values
     if _USE_TO_NUMPY and not ignore_check:  # only perform the check if we are using .to_numpy()
         if not np.shares_memory(frame_or_series, arr):
-            arr = frame_or_series.values  # Fallback to using .values if we find that .to_numpy() is not a copy
+            arr = frame_or_series.values  # Fallback to using .values if we find that .to_numpy() is a copy
     return arr
 
 
