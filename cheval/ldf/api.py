@@ -13,7 +13,7 @@ from .missing_data import SeriesFillManager, infer_dtype, PandasDtype
 from ..parsing.constants import NAN_STR, NAN_VAL, NEG_INF_STR, NEG_INF_VAL
 from ..parsing.expressions import Expression
 from ..parsing.expr_items import EvaluationMode
-from ..misc import convert_series, to_numpy
+from ..utils import convert_series, to_numpy
 
 _LabelType = Union[str, List[str]]
 

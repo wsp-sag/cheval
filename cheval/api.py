@@ -10,7 +10,7 @@ from .parsing.expr_items import ChainTuple
 from .parsing.expressions import Expression
 from .ldf import LinkedDataFrame
 from .exceptions import ModelNotReadyError
-from .misc import convert_series, to_numpy
+from .utils import convert_series, to_numpy
 if TYPE_CHECKING:
     from .model import ChoiceModel
 
