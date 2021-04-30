@@ -9,6 +9,7 @@ source:
 
 build:
   noarch: python
+  script: python setup.py --quiet install --single-version-externally-managed --record record.txt
 
 requirements:
   host:
@@ -26,6 +27,7 @@ requirements:
 about:
   home: https://github.com/wsp-sag/cheval
   license: MIT
+  license_file: LICENSE
   summary: A Python package for high-performance discrete-choice (logit) model evaluation in travel demand modelling
 
 extra:

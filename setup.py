@@ -12,7 +12,7 @@ setup(
     description='High-performance discrete-choice (logit) travel demand model evaluation',
     url='https://github.com/wsp-sag/cheval',
     author='WSP, Peter Kucirek',
-    maintatiner='Brian Cheung',
+    maintainer='Brian Cheung',
     maintainer_email='brian.cheung@wsp.com',
     classifiers=[
         'License :: OSI Approved :: MIT License'
