@@ -1,14 +1,11 @@
-from os import path
-from pkg_resources import safe_version
 from setuptools import find_packages, setup
 
-version = {}
-with open(path.join(path.dirname(path.realpath(__file__)), 'cheval', 'version.py')) as fp:
-    exec(fp.read(), {}, version)
+import versioneer
 
 setup(
     name='wsp-cheval',
-    version=safe_version(version['__version__']),
+    version=versioneer.get_version(),
+    cmdclass=versioneer.get_cmdclass(),
     description='High-performance discrete-choice (logit) travel demand model evaluation',
     url='https://github.com/wsp-sag/cheval',
     author='WSP, Peter Kucirek',
