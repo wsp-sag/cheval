@@ -1,7 +1,8 @@
+from typing import Union
+
+import numpy as np
 import pandas as pd
 from pandas.api.types import is_integer_dtype
-import numpy as np
-from typing import Union
 
 _USE_TO_NUMPY = hasattr(pd.Series, 'to_numpy')
 

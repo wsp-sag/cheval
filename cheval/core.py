@@ -1,9 +1,16 @@
 """Collection of pure-Numba functions for sampling & probability computation"""
+from tabnanny import check
 from typing import Tuple
+
 import numpy as np
+from numba import boolean as nbool
+from numba import float32 as nfloat
+from numba import float64 as ndouble
+from numba import int64 as nlong
+from numba import njit
+from numba import optional as maybe
+from numba import prange, void
 from numpy import ndarray
-from numba import (prange, njit, float64 as ndouble, int64 as nlong, void, float32 as nfloat, boolean as nbool,
-                   optional as maybe)
 
 try:
     from numba.core.types import Tuple as NTuple
@@ -125,9 +132,9 @@ def simple_probabilities(weights: ndarray) -> ndarray:
 
 
 @njit([
-    NTuple((ndouble[:], ndouble))(ndouble[:]), NTuple((ndouble[:], ndouble))(nfloat[:])
+    NTuple((ndouble[:], ndouble))(ndouble[:], nbool), NTuple((ndouble[:], ndouble))(nfloat[:], nbool)
 ], nogil=True)
-def multinomial_probabilities(utilities: ndarray) -> Tuple[ndarray, float]:
+def multinomial_probabilities(utilities: ndarray, check_infeasible=True) -> Tuple[ndarray, float]:
     """Computes probabilities given a multinomial logit model formulation."""
     n_cols = len(utilities)
     p = np.zeros(n_cols, dtype=np.float64)  # Return value
@@ -139,20 +146,23 @@ def multinomial_probabilities(utilities: ndarray) -> Tuple[ndarray, float]:
         p[i] = expu
 
     if ls <= 0:
-        raise UtilityBoundsError("MNL utilities all exceeded minimum value (Logsum == 0.0)")
-
-    for i in range(n_cols):
-        p[i] = p[i] / ls
+        if check_infeasible:
+            raise UtilityBoundsError("MNL utilities all exceeded minimum value (Logsum == 0.0)")
+        for i in range(n_cols):
+            p[i] = 0  # ensure that `p` will return all zeros
+    else:
+        for i in range(n_cols):
+            p[i] = p[i] / ls
 
     return p, ls
 
 
 @njit([
-    NTuple((ndouble[:], ndouble))(ndouble[:], nlong[:], nlong[:], ndouble[:], nbool[:], nbool),
-    NTuple((ndouble[:], ndouble))(nfloat[:], nlong[:], nlong[:], ndouble[:], nbool[:], nbool)
+    NTuple((ndouble[:], ndouble))(ndouble[:], nlong[:], nlong[:], ndouble[:], nbool[:], nbool, nbool),
+    NTuple((ndouble[:], ndouble))(nfloat[:], nlong[:], nlong[:], ndouble[:], nbool[:], nbool, nbool)
 ], nogil=True)
-def nested_probabilities(utilities: ndarray, hierarchy, levels, logsum_scales, bottom_flags, scale_utilities=True
-                         ) -> Tuple[ndarray, float]:
+def nested_probabilities(utilities: ndarray, hierarchy, levels, logsum_scales, bottom_flags, scale_utilities=True,
+                         check_infeasible=True) -> Tuple[ndarray, float]:
     """Probability evaluation of a nested logit model, without needing a tree structure or any recursion."""
 
     n_cells = len(utilities)
@@ -194,7 +204,8 @@ def nested_probabilities(utilities: ndarray, hierarchy, levels, logsum_scales, b
         current_level -= 1
 
     if top_logsum <= 0:
-        raise UtilityBoundsError("Nested logit top-level logsum is 0.0")
+        if check_infeasible:
+            raise UtilityBoundsError("Nested logit top-level logsum is 0.0")
 
     # Step 2: Use logsums to compute conditional probabilities
     for index, parent in enumerate(hierarchy):
@@ -246,7 +257,7 @@ def simple_multisample(weights: ndarray, n: int, seed: int, out: ndarray = None)
 ], nogil=True)
 def multinomial_sample(utilities: ndarray, r: float) -> Tuple[int, float]:
     """Samples once from an array of multinomial logit utilities, from an existing random draw"""
-    p_array, ls = multinomial_probabilities(utilities)
+    p_array, ls = multinomial_probabilities(utilities, check_infeasible=True)  # Check infeasible req'd (for sampling)
     return sample_once(p_array, r), ls
 
 
@@ -256,7 +267,7 @@ def multinomial_sample(utilities: ndarray, r: float) -> Tuple[int, float]:
 ], nogil=True)
 def multinomial_multisample(utilities: ndarray, n: int, seed: int, out: ndarray = None) -> Tuple[np.ndarray, float]:
     """Samples multiple times from an array of multinomial logit utilities, based on a random seed. Thread-safe."""
-    p_array, ls = multinomial_probabilities(utilities)
+    p_array, ls = multinomial_probabilities(utilities, check_infeasible=True)  # Check infeasible req'd (for sampling)
     return sample_multi(p_array, n, seed, out), ls
 
 
@@ -267,8 +278,10 @@ def multinomial_multisample(utilities: ndarray, n: int, seed: int, out: ndarray 
 def nested_sample(utilities: ndarray, r: float, parents, levels, ls_scales, bottom_flags, scale_utilities=True
                   ) -> Tuple[int, float]:
     """Samples once from an array of nested logit utilities, from an existing random draw"""
-    p_array, ls = nested_probabilities(utilities, parents, levels, ls_scales, bottom_flags,
-                                       scale_utilities=scale_utilities)
+    p_array, ls = nested_probabilities(
+        utilities, parents, levels, ls_scales, bottom_flags, scale_utilities=scale_utilities,
+        check_infeasible=True  # Check infeasible req'd (for sampling)
+    )
     return sample_once(p_array, r), ls
 
 
@@ -279,8 +292,9 @@ def nested_sample(utilities: ndarray, r: float, parents, levels, ls_scales, bott
 def nested_multisample(utilities: ndarray, parents, levels, ls_scales, bottom_flags, n: int, seed: int,
                        out: ndarray = None, scale_utilities=True) -> Tuple[ndarray, float]:
     """Samples multiple times from an array of nested logit utilities, based on a random seed. Thread-safe."""
-    p_array, ls = nested_probabilities(utilities, parents, levels, ls_scales, bottom_flags,
-                                       scale_utilities=scale_utilities)
+    p_array, ls = nested_probabilities(
+        utilities, parents, levels, ls_scales, bottom_flags, scale_utilities=scale_utilities, check_infeasible=True
+    )  # Check infeasible req'd (for sampling)
     return sample_multi(p_array, n, seed, out), ls
 
 
@@ -338,10 +352,10 @@ def worker_multinomial_sample(utilities: ndarray, n: int, seed: int) -> Tuple[nd
 
 
 @njit([
-    NTuple((ndouble[:, :], ndouble[:]))(ndouble[:, :]),
-    NTuple((ndouble[:, :], ndouble[:]))(nfloat[:, :])
+    NTuple((ndouble[:, :], ndouble[:]))(ndouble[:, :], nbool),
+    NTuple((ndouble[:, :], ndouble[:]))(nfloat[:, :], nbool)
 ], parallel=True, nogil=True)
-def worker_multinomial_probabilities(utilities: ndarray) -> Tuple[ndarray, ndarray]:
+def worker_multinomial_probabilities(utilities: ndarray, check_infeasible=True) -> Tuple[ndarray, ndarray]:
     """Runs multinomial_probabilities in parallel"""
     n_rows, n_cols = utilities.shape
     result = np.zeros((n_rows, n_cols), dtype=np.float64)
@@ -349,7 +363,7 @@ def worker_multinomial_probabilities(utilities: ndarray) -> Tuple[ndarray, ndarr
 
     for i in prange(n_rows):
         utility_row = utilities[i, :]
-        p_array, ls = multinomial_probabilities(utility_row)
+        p_array, ls = multinomial_probabilities(utility_row, check_infeasible)
         result[i, :] = p_array
         ls_array[i] = ls
 
@@ -389,11 +403,11 @@ def worker_nested_sample(utilities: ndarray, parents, levels, ls_scales, bottom_
 
 
 @njit([
-    NTuple((ndouble[:, :], ndouble[:]))(ndouble[:, :], nlong[:], nlong[:], ndouble[:], nbool[:], nbool),
-    NTuple((ndouble[:, :], ndouble[:]))(nfloat[:, :], nlong[:], nlong[:], ndouble[:], nbool[:], nbool)
+    NTuple((ndouble[:, :], ndouble[:]))(ndouble[:, :], nlong[:], nlong[:], ndouble[:], nbool[:], nbool, nbool),
+    NTuple((ndouble[:, :], ndouble[:]))(nfloat[:, :], nlong[:], nlong[:], ndouble[:], nbool[:], nbool, nbool)
 ], parallel=True, nogil=True)
-def worker_nested_probabilities(utilities: ndarray, parents, levels, ls_scales, bottom_flags, scale_utilities=True
-                                ) -> Tuple[ndarray, ndarray]:
+def worker_nested_probabilities(utilities: ndarray, parents, levels, ls_scales, bottom_flags, scale_utilities=True,
+                                check_infeasible=True) -> Tuple[ndarray, ndarray]:
     """Runs nested_probabilities in parallel"""
     n_rows, n_cols = utilities.shape
     result = np.zeros((n_rows, n_cols), dtype=np.float64)
@@ -402,7 +416,7 @@ def worker_nested_probabilities(utilities: ndarray, parents, levels, ls_scales, 
     for i in prange(n_rows):
         utility_row = utilities[i, :]
         p_array, ls = nested_probabilities(utility_row, parents, levels, ls_scales, bottom_flags,
-                                           scale_utilities=scale_utilities)
+                                           scale_utilities=scale_utilities, check_infeasible=check_infeasible)
         result[i, :] = p_array
         ls_array[i] = ls
 
