@@ -1,21 +1,24 @@
-from typing import Iterable, Dict, Union, Tuple, Set, Hashable, Optional, Any
 from itertools import chain as iter_chain
-from multiprocessing import cpu_count
 from logging import Logger
+from multiprocessing import cpu_count
+from typing import Any, Dict, Hashable, Iterable, Optional, Set, Tuple, Union
 
-from pandas import Series, DataFrame, Index, MultiIndex
+import numba as nb
+import numexpr as ne
+import numpy as np
 import pandas as pd
 from numpy import ndarray
-import numpy as np
-import numexpr as ne
-import numba as nb
+from pandas import DataFrame, Index, MultiIndex, Series
 
-from .api import (AbstractSymbol, ExpressionGroup, ChoiceNode, NumberSymbol, VectorSymbol, TableSymbol, MatrixSymbol,
-                  ExpressionSubGroup)
+from .api import (AbstractSymbol, ChoiceNode, ExpressionGroup,
+                  ExpressionSubGroup, MatrixSymbol, NumberSymbol, TableSymbol,
+                  VectorSymbol)
+from .core import (UtilityBoundsError, fast_indexed_add,
+                   worker_multinomial_probabilities, worker_multinomial_sample,
+                   worker_nested_probabilities, worker_nested_sample)
 from .exceptions import ModelNotReadyError
-from .core import (worker_nested_probabilities, worker_nested_sample, worker_multinomial_probabilities,
-                   worker_multinomial_sample, fast_indexed_add, UtilityBoundsError)
-from .parsing.constants import NAN_STR, NEG_INF_STR, NEG_INF_VAL, OUT_STR, RESERVED_WORDS
+from .parsing.constants import (NAN_STR, NEG_INF_STR, NEG_INF_VAL, OUT_STR,
+                                RESERVED_WORDS)
 
 
 class ChoiceModel(object):
@@ -536,20 +539,24 @@ class ChoiceModel(object):
         return retval
 
     def run_stochastic(self, n_threads: int = 1, clear_scope: bool = True, logger: Logger = None,
-                       group: Hashable = None, scale_utilities: bool = True) -> Tuple[DataFrame, Series]:
+                       group: Hashable = None, scale_utilities: bool = True,
+                       check_infeasible: bool = True) -> Tuple[DataFrame, Series]:
         """For each record, compute the probability distribution of the logit model. A DataFrame will be returned whose
         columns match the sorted list of node names (alternatives) in the model. Probabilities over all alternatives for
         each record will sum to 1.0.
 
         Args:
-            n_threads: The number of threads to be used in the computation. Must be >= 1.
-            clear_scope: If True data stored in the scope for utility computation will be released, freeing up memory.
-                Turning this off is of limited use.
-            logger: Optional Logger instance which reports expressions being evaluated
-            group: Evaluate only the specified utility group. Raises KeyError if the group name is not defined.
-            scale_utilities: For a nested model, if True then lower-level utilities will be divided by the logsum scale
-                of the parent nest. If False, no scaling is performed. This is entirely dependant on the reported form
-                of estimated model parameters.
+            n_threads (int): The number of threads to be used in the computation. Must be >= 1.
+            clear_scope (bool): If True data stored in the scope for utility computation will be released, freeing up
+                memory. Turning this off is of limited use.
+            logger (Logger): Optional Logger instance which reports expressions being evaluated
+            group (Hashable): Evaluate only the specified utility group. Raises KeyError if the group name is not
+                defined.
+            scale_utilities (bool): For a nested model, if True then lower-level utilities will be divided by the logsum
+                scale of the parent nest. If False, no scaling is performed. This is entirely dependant on the reported
+                form of estimated model parameters.
+            check_infeasible (bool): Flag to check for infeasible solutions (i.e., probabilities are 0 for all choices).
+                Set to ``False`` to disable the check and allow for cases where no solutions exist.
 
         Returns:
             Tuple[DataFrame, Series]: The first item returned is always the results of the model evaluation,
@@ -573,10 +580,11 @@ class ChoiceModel(object):
         if nested:
             hierarchy, levels, logsum_scales, bottom_flags = self._flatten()
             raw_result, logsum = worker_nested_probabilities(utility_table, hierarchy, levels, logsum_scales,
-                                                             bottom_flags, scale_utilities=scale_utilities)
+                                                             bottom_flags, scale_utilities=scale_utilities,
+                                                             check_infeasible=check_infeasible)
             result_frame = self._build_nested_stochastic_frame(raw_result)
         else:
-            raw_result, logsum = worker_multinomial_probabilities(utility_table)
+            raw_result, logsum = worker_multinomial_probabilities(utility_table, check_infeasible=check_infeasible)
             result_frame = DataFrame(raw_result, index=self.decision_units, columns=self.choices)
         logsum = Series(logsum, index=self.decision_units)
 

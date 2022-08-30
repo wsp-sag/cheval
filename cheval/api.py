@@ -1,16 +1,18 @@
-from typing import Dict, Union, Set, TYPE_CHECKING, List, Generator, Hashable, Optional
 import abc
 from collections import deque
+from typing import (TYPE_CHECKING, Dict, Generator, Hashable, List, Optional,
+                    Set, Union)
 
-import pandas as pd
-import numpy as np
 import attr
+import numpy as np
+import pandas as pd
 
+from .exceptions import ModelNotReadyError
+from .ldf import LinkedDataFrame
 from .parsing.expr_items import ChainTuple
 from .parsing.expressions import Expression
-from .ldf import LinkedDataFrame
-from .exceptions import ModelNotReadyError
 from .utils import convert_series, to_numpy
+
 if TYPE_CHECKING:
     from .model import ChoiceModel
 
