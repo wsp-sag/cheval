@@ -108,3 +108,37 @@ def test_pivot_table():
     expected_result.columns.name = 'temp_0'
 
     assert_frame_equal(test_result, expected_result)
+
+
+def test_groupby():
+    """Verifies basic groupby functionality for LinkedDataFrames
+
+    Most groupby functionality should be handled by pandas, but the internal
+    implementation may differ version-to-version, which may impact the ability of
+    LinkedDataFrame objects to correctly update the linkages.
+
+    This tests that groupby can be run on LinkedDataFrames, and that the linked dataframe
+    is accessible from each group and that it contains the correct data.
+    """
+
+    df1_dict = {
+        "df2_id": [  0,   1,   2,   0,   1,   2,   0],
+        "cats":   ["F", "M", "F", "M", "F", "M", "F"],
+    }
+
+    df2_dict = {
+        "col1":   ["a", "b", "c"],
+    }
+
+    df1 = LinkedDataFrame(pd.DataFrame(df1_dict))
+    df2 = LinkedDataFrame(pd.DataFrame(df2_dict))
+
+    df1.link_to(df2, "df2", on_self="df2_id")
+
+    groups = df1.groupby("cats")
+
+    for cat, group_df in groups:
+        if cat == "F":
+            assert list(sorted(group_df.df2.col1)) == ["a", "a", "b", "c"]
+        else:
+            assert list(sorted(group_df.df2.col1)) == ["a", "b", "c"]

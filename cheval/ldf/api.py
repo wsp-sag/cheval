@@ -613,13 +613,33 @@ class LinkedDataFrame(DataFrame):
         if not isinstance(other, LinkedDataFrame):
             return self
 
-        # Copy the link metadata
-        for link_name, link in other._links.items():
-            self._links[link_name] = link.copy_meta()
-
-        self._identified_links = other._identified_links.copy()
+        # Copy the link metadata from the parent dataframe
+        # Note that as of pandas 1.5, the names of the methods is not considered stable
+        # and may change in future versions.
+        if method == "groupby":
+            self._copy_links(other, reindex=True)
+        else:
+            for link_name, link in other._links.items():
+                self._links[link_name] = link.copy_meta()
+            self._identified_links = other._identified_links.copy()
 
         return self
+
+    def _copy_links(self, parent: 'LinkedDataFrame', reindex: bool = False):
+        """Copies linkage information from a parent dataframe
+
+        If `reindex` is True, computes an indexer based on the parent DataFrame's and
+        this DataFrame's indexes and passes it to `_LinkMeta.copy` to modify the linkage.
+        """
+        if reindex:
+            indexer = parent.index.get_indexer(self.index)
+        else:
+            indexer = None
+        link_names = set()
+        for link_name, link in parent._links.items():
+            self._links[link_name] = link.copy(indexer)
+            link_names.add(link_name)
+        self._identified_links = link_names
 
     def __subset_links(self, target: 'LinkedDataFrame', indexer: np.ndarray):
         for link_name, link_entry in self._links.items():
