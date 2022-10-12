@@ -1,14 +1,14 @@
-from typing import Dict, Set, Tuple, Optional
 import ast
+from typing import Dict, Optional, Set, Tuple
 
-import attr
-import pandas as pd
-import numpy as np
 import astor
+import attr
+import numpy as np
+import pandas as pd
 
-from .expr_items import ChainedSymbol
 from .ast_transformer import ExpressionParser
 from .exceptions import UnsupportedSyntaxError
+from .expr_items import ChainedSymbol
 
 
 def _split_filter(e: str) -> Tuple[str, Optional[str]]:

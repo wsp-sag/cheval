@@ -1,16 +1,15 @@
 """Module for AST Transformer subclass which specially-parses utility expressions"""
-from typing import Dict, Tuple, Set, Union
-
 import ast
 from collections import deque
+from typing import Dict, Set, Tuple, Union
 
 import astor
 import numpy as np
 from numexpr import expressions as nee
 
+from .constants import NAN_STR
 from .exceptions import UnsupportedSyntaxError
 from .expr_items import ChainedSymbol, EvaluationMode
-from .constants import *
 
 # Only nodes used in expressions are included, due to the limited parsing
 _UNSUPPORTED_NODES: Tuple[type] = (ast.Load, ast.Store, ast.Del, ast.IfExp, ast.Subscript, ast.ListComp, ast.DictComp,

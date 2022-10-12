@@ -1,5 +1,4 @@
 """Collection of pure-Numba functions for sampling & probability computation"""
-from tabnanny import check
 from typing import Tuple
 
 import numpy as np

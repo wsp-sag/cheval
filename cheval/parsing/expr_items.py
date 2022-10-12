@@ -1,7 +1,7 @@
 """Collection of common classes to store more complex substitutions (e.g. LinkedDataFrame lookup)"""
 from collections import deque, namedtuple
-from typing import Dict, Tuple
 from enum import Enum
+from typing import Dict, Tuple
 
 ChainTuple = namedtuple("ChainTuple", ['chain', 'func', 'args', 'withfunc'])
 
