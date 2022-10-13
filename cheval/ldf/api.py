@@ -788,72 +788,44 @@ class LinkedDataFrame(DataFrame):
             if refresh or entry.flat_indexer is None:
                 entry.precompute()
 
-    def pivot_table(self, values=None, index=None, columns=None, aggfunc='mean', fill_value=None, margins=False,
-                    dropna=True, margins_name='All'):
-        temp_columns = []
-        try:
-            new_index, temp_flags = self._make_temp_col(index)
-            if new_index[0] is None:
-                new_index = None
+    def pivot_table(self, values=None, index=None, columns=None, **kwargs):
+        # Construct a new DataFrame from any of the columns or lookups specified
+        # in values, index, or columns, and then pivot that
+        new_columns = {}
+        value_cols = self._resolve_columns(values)
+        new_columns.update(value_cols)
+        index_cols = self._resolve_columns(index)
+        new_columns.update(index_cols)
+        column_cols = self._resolve_columns(columns)
+        new_columns.update(column_cols)
+        pivot_df = pd.DataFrame(new_columns, index=self.index)
+
+        return pivot_df.pivot_table(index=index, columns=columns, values=values, **kwargs)
+
+    def _resolve_columns(self, lookup_items) -> Dict[str, pd.Series]:
+        """Resolves potential column names or lookups to a dict of Series
+
+        Helper for pivot_table to pull any relevant columns or linkage lookups
+        into a clean DataFrame.
+        Because pivot_table can take a wide variety of inputs as index, columns, and values,
+        this attempts to be very flexible with whether and how it looks up provided items.
+
+        Any items which get resolved as columns or linkage lookups are returned as a
+        Series in a key: value pair in the returned dict.
+        """
+        new_columns = {}
+        if isinstance(lookup_items, str):
+            if lookup_items in self.columns:
+                new_columns[lookup_items] = self[lookup_items]
             else:
-                for col_name, is_temp in zip(new_index, temp_flags):
-                    if is_temp:
-                        temp_columns.append(col_name)
-                if len(new_index) == 1:
-                    new_index = new_index[0]
-
-            new_columns, temp_flags = self._make_temp_col(columns)
-            if new_columns[0] is None:
-                new_columns = None
-            else:
-                for col_name, is_temp in zip(new_columns, temp_flags):
-                    if is_temp:
-                        temp_columns.append(col_name)
-                if len(new_columns) == 1:
-                    new_columns = new_columns[0]
-
-            new_values, temp_flags = self._make_temp_col(values)
-            if new_values[0] is None:
-                new_values = None
-            else:
-                for col_name, is_temp in zip(new_values, temp_flags):
-                    if is_temp:
-                        temp_columns.append(col_name)
-                if len(new_values) == 1:
-                    new_values = new_values[0]
-
-            # TODO: determine why margins=True causes things to crash...
-
-            return super().pivot_table(index=new_index, columns=new_columns, values=new_values, aggfunc=aggfunc,
-                                       fill_value=fill_value, margins=margins, dropna=dropna,
-                                       margins_name=margins_name)
-        finally:
-            for c in temp_columns:
-                del self[c]
-
-    def _make_temp_col(self, item: Union[str, List[str]]) -> Tuple[List[Optional[str]], List[bool]]:
-        if item is None:
-            return [None], [False]
-
-        item_is_single = isinstance(item, str)
-        items = [item] if item_is_single else item
-
-        new_columns, flags = [], []
-        for sub_item in items:
-            if sub_item in self:
-                new_columns.append(sub_item)
-                flags.append(False)
-            else:
-                new_column_values = self.evaluate(sub_item)  # Evaluate the column to find links
-                counter = 0
-                new_column_name = f"temp_{counter}"
-                while new_column_name in self:
-                    counter += 1
-                    new_column_name = f"temp_{counter}"
-                self[new_column_name] = new_column_values
-                new_columns.append(new_column_name)
-                flags.append(True)
-        return new_columns, flags
+                new_columns[lookup_items] = self.evaluate(lookup_items)
+        elif (lookup_items is not None) and not isinstance(lookup_items, (pd.Series, np.ndarray)):
+            for item in lookup_items:
+                if lookup_items in self.columns:
+                    new_columns[item] = self[item]
+                else:
+                    new_columns[item] = self.evaluate(item)
+        return new_columns
 
     def get_link_target(self, name) -> Union[DataFrame, 'LinkedDataFrame']:
         """Gets the referenced target ("other") of an outbound link. This is useful when the original reference to the

@@ -105,7 +105,44 @@ def test_pivot_table():
         'apartment': {'Ford': 1, 'Honda': 0, 'Toyota': 0}, 'house': {'Ford': 1, 'Honda': 2, 'Toyota': 1}
     })
     expected_result.index.name = 'manufacturer'
-    expected_result.columns.name = 'temp_0'
+    expected_result.columns.name = 'household.dwelling_type'
+
+    assert_frame_equal(test_result, expected_result)
+
+
+def test_pivot_table_multiindex():
+    """Test that pivot_table can correctly handle tables with a MultiIndex
+
+    Creates LinkedDataFrames with MultiIndexes to ensure pivot_table is not getting
+    tripped up trying to use the new pivoted index to reindex linkages which use
+    the original table indexes.
+    Generally, pivoting a LinkedDataFrame should produce a table which does not
+    contain any linkages.
+
+    This catches a specific error which arose in the GGHM demand model Python 3 conversion.
+    """
+    veh_index = pd.MultiIndex.from_arrays([vehicles_data["household_id"], vehicles_data["vehicle_id"], [0]*len(vehicles_data["vehicle_id"])])
+    vehicles = LinkedDataFrame(vehicles_data, index=veh_index)
+
+    hh_ids = households_data["household_id"]
+    hh_index = pd.MultiIndex.from_arrays([hh_ids, [0]*len(hh_ids), [0]*len(hh_ids), [0]*len(hh_ids)])
+    households = LinkedDataFrame(households_data, index=hh_index)
+
+    vehicles["id_2"] = 0
+    households["id_2"] = 0
+
+    vehicles.link_to(households, 'household', on=['household_id', "id_2"])
+    households.link_to(vehicles, 'vehicles', on=['household_id', "id_2"])
+
+    test_result = vehicles.pivot_table(values='vehicle_id', index='manufacturer', columns='household.dwelling_type',
+                                       aggfunc="sum", fill_value=0.0)
+    test_result.columns = test_result.columns.astype(str)
+
+    expected_result = pd.DataFrame({
+        'apartment': {'Ford': 0, 'Honda': 0, 'Toyota': 0}, 'house': {'Ford': 1, 'Honda': 0, 'Toyota': 0}
+    })
+    expected_result.index.name = 'manufacturer'
+    expected_result.columns.name = 'household.dwelling_type'
 
     assert_frame_equal(test_result, expected_result)
 
