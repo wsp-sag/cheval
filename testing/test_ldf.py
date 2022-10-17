@@ -121,18 +121,28 @@ def test_pivot_table_multiindex():
 
     This catches a specific error which arose in the GGHM demand model Python 3 conversion.
     """
-    veh_index = pd.MultiIndex.from_arrays([vehicles_data["household_id"], vehicles_data["vehicle_id"], [0]*len(vehicles_data["vehicle_id"])])
+    # We want the indexes for each table to have different dimensions,
+    # so that indexing logic errors are made explicit as raised exceptions
+    # We're using the following MultiIndexes:
+    # For the vehicles table: (hhid, veh_id, dummy)
+    # For the households table: (hhid, dummy, dummy, dummy)
+    # The output pivot table should have an index of (manufacturer)
+    # A (manufacturer, household.dwelling_type) index may be created by pandas
+    # as an internal implementation detail
+    n_rows_veh = len(vehicles_data["household_id"])
+    veh_index = pd.MultiIndex.from_arrays([vehicles_data["household_id"], vehicles_data["vehicle_id"],
+                                           [0]*n_rows_veh
+                                           ])
     vehicles = LinkedDataFrame(vehicles_data, index=veh_index)
 
-    hh_ids = households_data["household_id"]
-    hh_index = pd.MultiIndex.from_arrays([hh_ids, [0]*len(hh_ids), [0]*len(hh_ids), [0]*len(hh_ids)])
+    n_rows_hh = len(households_data["household_id"])
+    hh_index = pd.MultiIndex.from_arrays([households_data["household_id"],
+                                          [0]*n_rows_hh, [0]*n_rows_hh, [0]*n_rows_hh
+                                          ])
     households = LinkedDataFrame(households_data, index=hh_index)
 
-    vehicles["id_2"] = 0
-    households["id_2"] = 0
-
-    vehicles.link_to(households, 'household', on=['household_id', "id_2"])
-    households.link_to(vehicles, 'vehicles', on=['household_id', "id_2"])
+    vehicles.link_to(households, 'household', on=['household_id'])
+    households.link_to(vehicles, 'vehicles', on=['household_id'])
 
     test_result = vehicles.pivot_table(values='vehicle_id', index='manufacturer', columns='household.dwelling_type',
                                        aggfunc="sum", fill_value=0.0)
