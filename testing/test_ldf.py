@@ -189,3 +189,25 @@ def test_groupby():
             assert list(sorted(group_df.df2.col1)) == ["a", "a", "b", "c"]
         else:
             assert list(sorted(group_df.df2.col1)) == ["a", "b", "c"]
+
+
+def test_bool_columns():
+    """Test that bool columns get correctly handled in aggregations on linkages
+
+    Errors with bool columns originally came up when attempting to aggregate on
+    a bool expression. It is hoped that this will catch similar errors with bool
+    columns.
+    """
+
+    vehicles = LinkedDataFrame(vehicles_data)
+    households = LinkedDataFrame(households_data)
+
+    vehicles.link_to(households, 'household', on='household_id')
+    households.link_to(vehicles, 'vehicles', on='household_id')
+
+    expression = "vehicles.sum(manufacturer=='Honda')"
+    test_result = households.evaluate(expression)
+
+    expected_result = pd.Series([1, 0, 0, 1], index=households.index)
+
+    assert_series_equal(test_result, expected_result)

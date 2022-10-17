@@ -550,7 +550,7 @@ class LinkedDataFrame(DataFrame):
 
                 # A fill value of NaN is only disallowed for integer types
                 fill_value = np.nan
-                if series_type == PandasDtype.INT_NAME:
+                if series_type in {PandasDtype.INT_NAME, PandasDtype.UINT_NAME, PandasDtype.BOOL_NAME}:
                     fill_value = int_fill
                 elif series_type == PandasDtype.TIME_NAME:
                     raise NotImplementedError("Haven't found a way to instantiate NaT filler")
