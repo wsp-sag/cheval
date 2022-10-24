@@ -105,6 +105,87 @@ def test_pivot_table():
         'apartment': {'Ford': 1, 'Honda': 0, 'Toyota': 0}, 'house': {'Ford': 1, 'Honda': 2, 'Toyota': 1}
     })
     expected_result.index.name = 'manufacturer'
-    expected_result.columns.name = 'temp_0'
+    expected_result.columns.name = 'household.dwelling_type'
 
     assert_frame_equal(test_result, expected_result)
+
+
+def test_pivot_table_multiindex():
+    """Test that pivot_table can correctly handle tables with a MultiIndex
+
+    Creates LinkedDataFrames with MultiIndexes to ensure pivot_table is not getting
+    tripped up trying to use the new pivoted index to reindex linkages which use
+    the original table indexes.
+    Generally, pivoting a LinkedDataFrame should produce a table which does not
+    contain any linkages.
+
+    This catches a specific error which arose in the GGHM demand model Python 3 conversion.
+    """
+    # We want the indexes for each table to have different dimensions,
+    # so that indexing logic errors are made explicit as raised exceptions
+    # We're using the following MultiIndexes:
+    # For the vehicles table: (hhid, veh_id, dummy)
+    # For the households table: (hhid, dummy, dummy, dummy)
+    # The output pivot table should have an index of (manufacturer)
+    # A (manufacturer, household.dwelling_type) index may be created by pandas
+    # as an internal implementation detail
+    n_rows_veh = len(vehicles_data["household_id"])
+    veh_index = pd.MultiIndex.from_arrays([vehicles_data["household_id"], vehicles_data["vehicle_id"],
+                                           [0]*n_rows_veh
+                                           ])
+    vehicles = LinkedDataFrame(vehicles_data, index=veh_index)
+
+    n_rows_hh = len(households_data["household_id"])
+    hh_index = pd.MultiIndex.from_arrays([households_data["household_id"],
+                                          [0]*n_rows_hh, [0]*n_rows_hh, [0]*n_rows_hh
+                                          ])
+    households = LinkedDataFrame(households_data, index=hh_index)
+
+    vehicles.link_to(households, 'household', on=['household_id'])
+    households.link_to(vehicles, 'vehicles', on=['household_id'])
+
+    test_result = vehicles.pivot_table(values='vehicle_id', index='manufacturer', columns='household.dwelling_type',
+                                       aggfunc="sum", fill_value=0.0)
+    test_result.columns = test_result.columns.astype(str)
+
+    expected_result = pd.DataFrame({
+        'apartment': {'Ford': 0, 'Honda': 0, 'Toyota': 0}, 'house': {'Ford': 1, 'Honda': 0, 'Toyota': 0}
+    })
+    expected_result.index.name = 'manufacturer'
+    expected_result.columns.name = 'household.dwelling_type'
+
+    assert_frame_equal(test_result, expected_result)
+
+
+def test_groupby():
+    """Verifies basic groupby functionality for LinkedDataFrames
+
+    Most groupby functionality should be handled by pandas, but the internal
+    implementation may differ version-to-version, which may impact the ability of
+    LinkedDataFrame objects to correctly update the linkages.
+
+    This tests that groupby can be run on LinkedDataFrames, and that the linked dataframe
+    is accessible from each group and that it contains the correct data.
+    """
+
+    df1_dict = {
+        "df2_id": [  0,   1,   2,   0,   1,   2,   0],
+        "cats":   ["F", "M", "F", "M", "F", "M", "F"],
+    }
+
+    df2_dict = {
+        "col1":   ["a", "b", "c"],
+    }
+
+    df1 = LinkedDataFrame(pd.DataFrame(df1_dict))
+    df2 = LinkedDataFrame(pd.DataFrame(df2_dict))
+
+    df1.link_to(df2, "df2", on_self="df2_id")
+
+    groups = df1.groupby("cats")
+
+    for cat, group_df in groups:
+        if cat == "F":
+            assert list(sorted(group_df.df2.col1)) == ["a", "a", "b", "c"]
+        else:
+            assert list(sorted(group_df.df2.col1)) == ["a", "b", "c"]
