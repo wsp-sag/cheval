@@ -8,7 +8,7 @@ setup(
     cmdclass=versioneer.get_cmdclass(),
     description='High-performance discrete-choice (logit) travel demand model evaluation',
     url='https://github.com/wsp-sag/cheval',
-    author='WSP, Peter Kucirek',
+    author='WSP',
     maintainer='Brian Cheung',
     maintainer_email='brian.cheung@wsp.com',
     classifiers=[
@@ -16,7 +16,7 @@ setup(
     ],
     packages=find_packages(),
     install_requires=[
-        'pandas>=0.22',
+        'pandas>=0.22,<1.5',
         'numpy>=1.14',
         'astor',
         'numba>=0.45',

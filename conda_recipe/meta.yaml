@@ -16,7 +16,7 @@ requirements:
     - python
   run:
     - python >=3.6
-    - pandas >=0.22
+    - pandas >=0.22,<1.5
     - numpy >=1.15
     - numba >=0.45
     - numexpr >=2.6
@@ -34,3 +34,4 @@ extra:
   maintainers:
     - Peter Kucirek
     - Brian Cheung
+    - Andrew Clarry
