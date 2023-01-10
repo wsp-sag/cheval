@@ -155,12 +155,12 @@ class _LinkMeta:
             if self_indexer.equals(other_indexer):  # Indexers are identical
                 self.flat_indexer = np.arange(len(other_indexer))
                 self.missing_indices = np.array([], dtype=int)
-            elif len(self_indexer.difference(other_indexer)) == 0:  # No missing values
-                # Taking the difference is faster than `all(.isin())`
-                self.missing_indices = np.array([], dtype=int)
+            else:
+                # Originally, different logic was used if the self indexer didn't map cleanly onto the other indexer
+                # (the other was missing values, or the self had NaNs).
+                # Those were combined into a single case for performance purposes
                 self.flat_indexer = other_indexer.get_indexer(self_indexer)
-            else:  # All other cases
-                self.flat_indexer, self.missing_indices = other_indexer.get_indexer_non_unique(self_indexer)
+                self.missing_indices = np.where(self.flat_indexer == -1)
 
     @property
     def chained(self) -> bool:
