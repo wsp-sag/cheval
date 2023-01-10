@@ -160,7 +160,7 @@ class _LinkMeta:
                 # (the other was missing values, or the self had NaNs).
                 # Those were combined into a single case for performance purposes
                 self.flat_indexer = other_indexer.get_indexer(self_indexer)
-                self.missing_indices = np.where(self.flat_indexer == -1)
+                self.missing_indices = np.array(np.where(self.flat_indexer == -1), dtype=int)
 
     @property
     def chained(self) -> bool:
