@@ -94,7 +94,7 @@ class _LinkMeta:
 
     flat_indexer: Optional[np.ndarray]
     other_grouper: Optional[np.ndarray]
-    missing_indices: Optional[Union[np.ndarray, List]]
+    _missing_indices: Optional[Union[np.ndarray, List]]
 
     @staticmethod
     def create(owner: 'LinkedDataFrame', other: Union['LinkedDataFrame', DataFrame], self_labels: Union[List[str], str],
@@ -121,7 +121,7 @@ class _LinkMeta:
         self.aggregation_required = False
         self.flat_indexer = None
         self.other_grouper = None
-        self.missing_indices = None
+        self._missing_indices = None
 
     def _determine_aggregation(self, precompute):
         self_indexer = self.self_meta.get_indexer(self.owner)
@@ -163,7 +163,7 @@ class _LinkMeta:
     def _compute_missing_indices(self):
         """Initializes `missing_indices` by finding the rows which do not have any linkages
         """
-        self.missing_indices = np.nonzero(self.flat_indexer == -1)[0]
+        self._missing_indices = np.nonzero(self.flat_indexer == -1)[0]
 
     @property
     def chained(self) -> bool:
@@ -173,9 +173,9 @@ class _LinkMeta:
     def indexer_and_missing(self) -> Tuple[np.ndarray, np.ndarray]:
         if self.flat_indexer is None:
             self.precompute()
-        if self.missing_indices is None:
+        if self._missing_indices is None:
             self._compute_missing_indices()
-        return self.flat_indexer, self.missing_indices
+        return self.flat_indexer, self._missing_indices
 
     def precompute(self):
         """Top-level method to precompute the indexer"""
@@ -195,7 +195,7 @@ class _LinkMeta:
         # If we are not taking a slice, copy missing indices (if they exist)
         # If we are taking a slice, leave missing indices to be lazy-computed
         if indices is None:
-            copied.missing_indices = self.missing_indices
+            copied._missing_indices = self._missing_indices
 
         if self.other_grouper is not None:
             copied.other_grouper = self.other_grouper
