@@ -150,17 +150,20 @@ class _LinkMeta:
         if self.aggregation_required:
             group_ints, group_order = other_indexer.factorize()
             self.other_grouper = group_ints
-            self.flat_indexer, self.missing_indices = group_order.get_indexer_non_unique(self_indexer)
+            self.flat_indexer = group_order.get_indexer(self_indexer)
         else:  # Performance-tuned fast paths for constructing indexers
             if self_indexer.equals(other_indexer):  # Indexers are identical
                 self.flat_indexer = np.arange(len(other_indexer))
-                self.missing_indices = np.array([], dtype=int)
             else:
                 # Originally, different logic was used if the self indexer didn't map cleanly onto the other indexer
                 # (the other was missing values, or the self had NaNs).
                 # Those were combined into a single case for performance purposes
                 self.flat_indexer = other_indexer.get_indexer(self_indexer)
-                self.missing_indices = np.nonzero(self.flat_indexer == -1)[0]
+
+    def _compute_missing_indices(self):
+        """Initializes `missing_indices` by finding the rows which do not have any linkages
+        """
+        self.missing_indices = np.nonzero(self.flat_indexer == -1)[0]
 
     @property
     def chained(self) -> bool:
@@ -168,8 +171,10 @@ class _LinkMeta:
 
     @property
     def indexer_and_missing(self) -> Tuple[np.ndarray, np.ndarray]:
-        if (self.flat_indexer is None) or (self.missing_indices is None):
+        if self.flat_indexer is None:
             self.precompute()
+        if self.missing_indices is None:
+            self._compute_missing_indices()
         return self.flat_indexer, self.missing_indices
 
     def precompute(self):
@@ -187,16 +192,10 @@ class _LinkMeta:
         if self.flat_indexer is not None:
             copied.flat_indexer = self.flat_indexer[indices] if indices is not None else self.flat_indexer
 
-        if isinstance(self.missing_indices, list):
-            copied.missing_indices = []
-        elif isinstance(self.missing_indices, np.ndarray):
-            if (indices is not None) and (len(self.missing_indices) > 0):
-                # Update the indices of rows with missing linkages by finding
-                # elements of the new index which were in the original missing indices
-                new_missing_eles = np.isin(indices, self.missing_indices)
-                copied.missing_indices = np.nonzero(new_missing_eles)[0]
-            else:
-                copied.missing_indices = self.missing_indices[:]
+        # If we are not taking a slice, copy missing indices (if they exist)
+        # If we are taking a slice, leave missing indices to be lazy-computed
+        if indices is None:
+            copied.missing_indices = self.missing_indices
 
         if self.other_grouper is not None:
             copied.other_grouper = self.other_grouper
