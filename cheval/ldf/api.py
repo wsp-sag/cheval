@@ -191,8 +191,10 @@ class _LinkMeta:
             copied.missing_indices = []
         elif isinstance(self.missing_indices, np.ndarray):
             if (indices is not None) and (len(self.missing_indices) > 0):
-                mask = np.isin(self.missing_indices, indices)
-                copied.missing_indices = self.missing_indices[mask]
+                # Update the indices of rows with missing linkages by finding
+                # elements of the new index which were in the original missing indices
+                new_missing_eles = np.isin(indices, self.missing_indices)
+                copied.missing_indices = np.nonzero(new_missing_eles)[0]
             else:
                 copied.missing_indices = self.missing_indices[:]
 
