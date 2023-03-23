@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 from itertools import chain as iter_chain
 from logging import Logger
 from multiprocessing import cpu_count
@@ -7,8 +9,8 @@ import numba as nb
 import numexpr as ne
 import numpy as np
 import pandas as pd
-from numpy import ndarray
-from pandas import DataFrame, Index, MultiIndex, Series
+from numpy.random import RandomState
+from numpy.typing import DTypeLike, NDArray
 
 from .api import (AbstractSymbol, ChoiceNode, ExpressionGroup,
                   ExpressionSubGroup, MatrixSymbol, NumberSymbol, TableSymbol,
@@ -19,6 +21,7 @@ from .core import (UtilityBoundsError, fast_indexed_add,
 from .exceptions import ModelNotReadyError
 from .parsing.constants import (NAN_STR, NEG_INF_STR, NEG_INF_VAL, OUT_STR,
                                 RESERVED_WORDS)
+from .utils import to_numpy
 
 
 class ChoiceModel(object):
@@ -35,18 +38,18 @@ class ChoiceModel(object):
         self._scope: Dict[str, AbstractSymbol] = {}
 
         # Index objects
-        self._decision_units: Optional[Index] = None
+        self._decision_units: Optional[pd.Index] = None
 
         # Cached items
-        self._cached_cols: Optional[Index] = None
-        self._cached_utils: Optional[DataFrame] = None
+        self._cached_cols: Optional[pd.Index] = None
+        self._cached_utils: Optional[pd.DataFrame] = None
 
         # Other
         self._precision: int = 0
         self.precision: int = precision
 
         self.debug_id: Optional[Tuple[int, int]] = debug_id  # debug_id must be a valid label used to search an Index
-        self.debug_results: Optional[DataFrame] = None
+        self.debug_results: Optional[pd.DataFrame] = None
 
     @property
     def precision(self) -> int:
@@ -55,16 +58,17 @@ class ChoiceModel(object):
 
     @precision.setter
     def precision(self, i: int):
-        assert i in {4, 8}, f"Only precision values of 4 or 8 are allowed (got {i})"
+        if i not in {4, 8}:
+            raise ValueError(f"Only precision values of 4 or 8 are allowed (got {i})")
         self._precision = i
 
     @property
-    def _partial_utilities(self) -> DataFrame:
+    def _partial_utilities(self) -> pd.DataFrame:
         self.validate(expressions=False, assignment=False)
         if self._cached_utils is None:
             dtype = np.dtype(f"f{self._precision}")
             matrix = np.zeros(shape=[len(self.decision_units), len(self.choices)], dtype=dtype)
-            table = DataFrame(matrix, index=self.decision_units, columns=self.choices)
+            table = pd.DataFrame(matrix, index=self.decision_units, columns=self.choices)
             self._cached_utils = table
         else:
             table = self._cached_utils
@@ -142,7 +146,7 @@ class ChoiceModel(object):
         return retval
 
     @property
-    def choices(self) -> Index:
+    def choices(self) -> pd.Index:
         """Pandas Index representing the choices in the model"""
         if self._cached_cols is not None:
             return self._cached_cols
@@ -151,7 +155,7 @@ class ChoiceModel(object):
         max_level = self.depth
 
         if max_level == 1:
-            return Index(self._all_nodes.keys())
+            return pd.Index(self._all_nodes.keys())
         else:
             nested_tuples = [node.nested_id(max_level) for node in self._all_nodes.values()]
 
@@ -159,10 +163,10 @@ class ChoiceModel(object):
             for i in range(1, max_level):
                 level_names.append(f'nest_{i + 1}')
 
-            return MultiIndex.from_tuples(nested_tuples, names=level_names)
+            return pd.MultiIndex.from_tuples(nested_tuples, names=level_names)
 
     @property
-    def elemental_choices(self) -> Index:
+    def elemental_choices(self) -> pd.Index:
         """For a nested model, return the Index of 'elemental' choices without children that are available to be
         chosen."""
         max_level = self.depth
@@ -176,14 +180,14 @@ class ChoiceModel(object):
                 continue
             elemental_tuples.append(node.nested_id(max_level))
 
-        return MultiIndex.from_tuples(elemental_tuples)
+        return pd.MultiIndex.from_tuples(elemental_tuples)
 
     @property
     def depth(self) -> int:
         """The maximum number of levels in a nested logit model. By definition, multinomial models have a depth of 1"""
         return max(node.level for node in self._all_nodes.values())
 
-    def _flatten(self) -> Tuple[ndarray, ndarray, ndarray, ndarray]:
+    def _flatten(self) -> Tuple[NDArray, NDArray, NDArray, NDArray]:
         """Converts nested structure to arrays for Numba-based processing"""
         max_level = self.depth
         assert max_level > 1
@@ -214,7 +218,7 @@ class ChoiceModel(object):
     # region Expressions and scope operations
 
     @property
-    def decision_units(self) -> Index:
+    def decision_units(self) -> pd.Index:
         """The units or agents or OD pairs over which choices are to be evaluated. MUST BE SET before symbols can be
         assigned, or utilities calculated; otherwise ModelNotReadyError will be raised"""
         if self._decision_units is None:
@@ -232,10 +236,10 @@ class ChoiceModel(object):
                 continue  # Don't empty symbols that don't depend on the DU.
             symbol.empty()
 
-        if isinstance(item, Index):
+        if isinstance(item, pd.Index):
             self._decision_units = item
         else:
-            self._decision_units = Index(item)
+            self._decision_units = pd.Index(item)
 
     @staticmethod
     def _check_symbol_name(name: str):
@@ -323,12 +327,12 @@ class ChoiceModel(object):
         Also gets called internally by the model at various stages
 
         Args:
-            tree: Checks that all nested nodes have two or more children.
-            decision_units: Checks that the decision units have been assigned.
-            expressions: Checks that expressions use declared symbols.
-            assignment: Checks that used and declared symbols have been assigned
-            group: If not ``None``,  checks the expressions for only the specified group. This also applies to the
-                assignment check. Otherwise, all expressions and symbols will be checked.
+            tree (bool, optional): Checks that all nested nodes have two or more children.
+            decision_units (bool, optional): Checks that the decision units have been assigned.
+            expressions (bool, optional): Checks that expressions use declared symbols.
+            assignment (bool, optional): Checks that used and declared symbols have been assigned
+            group (Hashable, optional): If not ``None``,  checks the expressions for only the specified group. This also
+                applies to the assignment check. Otherwise, all expressions and symbols will be checked.
 
         Raises:
             ModelNotReadyError: if any check fails.
@@ -360,44 +364,55 @@ class ChoiceModel(object):
             if assignment:
                 assert_valid(self._scope[name].filled, f"Symbol '{name}' is declared but never assigned")
 
-    def run_discrete(self, *, random_seed: int = None, n_draws: int = 1, astype: Union[str, np.dtype] = 'category',
-                     squeeze: bool = True, n_threads: int = 1, clear_scope: bool = True, result_name: str = None,
-                     logger: Logger = None, scale_utilities: bool = True) -> Tuple[Union[DataFrame, Series], Series]:
+    def run_discrete(self, *, random_seed: Union[int, RandomState] = None, n_draws: int = 1,
+                     astype: Union[str, DTypeLike] = 'category', squeeze: bool = True, n_threads: int = 1,
+                     clear_scope: bool = True, result_name: str = None, logger: Logger = None,
+                     scale_utilities: bool = True) -> Tuple[Union[pd.DataFrame, pd.Series], pd.Series]:
         """For each decision unit, discretely sample one or more times (with replacement) from the probability
         distribution.
 
         Args:
-            random_seed: The random seed for drawing uniform samples from the Monte Carlo.
-            n_draws: The number of times to draw (with replacement) for each record. Must be >= 1. Run time is
-                proportional to the number of draws.
-            astype: The dtype of the return array; the result will be cast to the
-                given dtype. The special value 'category' returns a Categorical Series (or a DataFrame for n_draws > 1).
-                The special value 'index' returns the positional index in the sorted array of node names.
-            squeeze: Only used when n_draws == 1. If True, then a Series will be returned, otherwise a DataFrame
-                with one column will be returned.
-            n_threads: The number of threads to uses in the computation. Must be >= 1
-            clear_scope: If True and override_utilities not provided, data stored in the scope for
-                utility computation will be released, freeing up memory. Turning this off is of limited use.
-            result_name: Name for the result Series or name of the columns of the result DataFrame. Purely aesthetic.
-            logger: Optional Logger instance which reports expressions being evaluated
-            scale_utilities: For a nested model, if True then lower-level utilities will be divided by the logsum scale
-                of the parent nest. If False, no scaling is performed. This is entirely dependant on the reported form
-                of estimated model parameters.
+            random_seed (int | RandomState, optional): Defaults to ``None``. The random seed for drawing uniform samples
+                from the Monte Carlo.
+            n_draws (int, optional): Defaults to ``1``. The number of times to draw (with replacement) for each record.
+                Must be >= 1. Run time is proportional to the number of draws.
+            astype (str | DTypeLike, optional): Defaults to ``'category'``. The dtype of the return array; the result
+                will be cast to the given dtype. The special value 'category' returns a Categorical Series (or a
+                DataFrame for n_draws > 1). The special value 'index' returns the positional index in the sorted array
+                of node names.
+            squeeze (bool, optional): Defaults to ``True``. Only used when n_draws == 1. If True, then a Series will be
+                returned, otherwise a DataFrame with one column will be returned.
+            n_threads (int, optional): Defaults to ``1``. The number of threads to uses in the computation. Must be >= 1
+            clear_scope (bool, optional): Defaults to ``bool``. If True and override_utilities not provided, data stored
+                in the scope for utility computation will be released, freeing up memory. Turning this off is of limited
+                use.
+            result_name (str, optional): Defaults to ``None``. Name for the result Series or name of the columns of the
+                result DataFrame. Purely aesthetic.
+            logger (Logger, optional): Defaults to ``None``. A Logger instance which reports expressions being evaluated
+            scale_utilities (bool, optional): Defaults to ``True``. For a nested model, if True then lower-level
+                utilities will be divided by the logsum scale of the parent nest. If False, no scaling is performed.
+                This is entirely dependant on the reported form of estimated model parameters.
 
         Returns:
-            Tuple[DataFrame or Series, Series]: The first item returned is always the results of the model evaluation,
+            Tuple[DataFrame | Series, Series]: The first item returned is always the results of the model evaluation,
                 representing the choice(s) made by each decision unit. If n_draws > 1, the result is a DataFrame, with
                 n_draws columns, otherwise a Series. The second item is the top-level logsum term from the logit model,
                 for each decision unit. This is always a Series, as its value doesn't change with the number of draws.
         """
         self.validate()
-        if random_seed is None:
-            random_seed = np.random.randint(1, 1000)
 
-        assert n_draws >= 1
+        if random_seed is None:
+            random_seed = RandomState().randint(1, 10000)
+        elif isinstance(random_seed, RandomState):
+            random_seed = random_seed.randint(1, 10000)
+        else:
+            random_seed = int(random_seed)
+
+        if n_draws < 1:
+            raise ValueError("`n_draws` must be >= 1")
 
         # Utility computations
-        utility_table = self._evaluate_utilities(self._expressions, n_threads=n_threads, logger=logger).values
+        utility_table = self._evaluate_utilities(self._expressions, n_threads=n_threads, logger=logger).to_numpy()
         if clear_scope:
             self.clear_scope()
 
@@ -406,13 +421,15 @@ class ChoiceModel(object):
         nested = self.depth > 1
         if nested:
             hierarchy, levels, logsum_scales, bottom_flags = self._flatten()
-            raw_result, logsum = worker_nested_sample(utility_table, hierarchy, levels, logsum_scales, bottom_flags,
-                                                      n_draws, random_seed, scale_utilities=scale_utilities)
+            raw_result, logsum = worker_nested_sample(
+                utility_table, hierarchy, levels, logsum_scales, bottom_flags, n_draws, random_seed,
+                scale_utilities=scale_utilities
+            )
         else:
             raw_result, logsum = worker_multinomial_sample(utility_table, n_draws, random_seed)
 
         # Finalize results
-        logsum = Series(logsum, index=self.decision_units)
+        logsum = pd.Series(logsum, index=self.decision_units)
         result = self._convert_result(raw_result, astype, squeeze, result_name)
         return result, logsum
 
@@ -432,7 +449,7 @@ class ChoiceModel(object):
         return col_index.get_loc(index_item)  # Get the column number for the selected choice
 
     def _evaluate_utilities(self, expressions: Union[ExpressionGroup, ExpressionSubGroup],
-                            n_threads: int = None, logger: Logger = None, allow_casting=True) -> DataFrame:
+                            n_threads: int = None, logger: Logger = None, allow_casting=True) -> pd.DataFrame:
         if self._decision_units is None:
             raise ModelNotReadyError("Decision units must be set before evaluating utility expressions")
         if n_threads is None:
@@ -447,7 +464,7 @@ class ChoiceModel(object):
         if self.debug_id:
             debug_label = row_index.get_loc(self.debug_id)
 
-        utilities = self._partial_utilities.values
+        utilities = to_numpy(self._partial_utilities)
 
         # Prepare locals, including scalar, vector, and matrix variables that don't need any further processing.
         shared_locals = {NAN_STR: np.nan, OUT_STR: utilities, NEG_INF_STR: NEG_INF_VAL}
@@ -487,18 +504,18 @@ class ChoiceModel(object):
                 debug_expr.append(expr.raw)
                 debug_results.append(utilities[debug_label].copy())
 
+        if self.debug_id:  # expressions.tolist() doesn't work...
+            self.debug_results = pd.DataFrame(debug_results, index=debug_expr, columns=col_index)
+
         nans = np.isnan(utilities)
         n_nans = nans.sum()
         if n_nans > 0:
             raise UtilityBoundsError(f"Found {n_nans} cells in utility table with NaN")
 
-        if self.debug_id:  # expressions.tolist() doesn't work...
-            self.debug_results = DataFrame(debug_results, index=debug_expr, columns=col_index)
-
-        return DataFrame(utilities, index=row_index, columns=col_index)
+        return pd.DataFrame(utilities, index=row_index, columns=col_index)
 
     @staticmethod
-    def _kernel_eval(transformed_expr: str, local_dict: Dict[str, np.ndarray], out: np.ndarray, column_index,
+    def _kernel_eval(transformed_expr: str, local_dict: Dict[str, NDArray], out: NDArray, column_index,
                      casting_rule='same_kind'):
         if column_index is not None:
             for key, val in local_dict.items():
@@ -512,7 +529,8 @@ class ChoiceModel(object):
         expr_to_run = f"{OUT_STR} + ({transformed_expr})"
         ne.evaluate(expr_to_run, local_dict=local_dict, out=out, casting=casting_rule)
 
-    def _convert_result(self, raw_result: ndarray, astype, squeeze: bool, result_name: str) -> Union[Series, DataFrame]:
+    def _convert_result(self, raw_result: NDArray, astype, squeeze: bool,
+                        result_name: str) -> Union[pd.Series, pd.DataFrame]:
         n_draws = raw_result.shape[1]
         column_index = pd.RangeIndex(n_draws, name=result_name)
         record_index = self.decision_units
@@ -529,7 +547,7 @@ class ChoiceModel(object):
         retval = []
         for col in range(n_draws):
             indices = raw_result[:, col]
-            retval.append(Series(lookup_table.take(indices), index=record_index))
+            retval.append(pd.Series(lookup_table.take(indices), index=record_index))
         retval = pd.concat(retval, axis=1)
         retval.columns = column_index
 
@@ -538,25 +556,27 @@ class ChoiceModel(object):
             retval.name = result_name
         return retval
 
-    def run_stochastic(self, n_threads: int = 1, clear_scope: bool = True, logger: Logger = None,
+    def run_stochastic(self, *, n_threads: int = 1, clear_scope: bool = True, logger: Logger = None,
                        group: Hashable = None, scale_utilities: bool = True,
-                       check_infeasible: bool = True) -> Tuple[DataFrame, Series]:
+                       check_infeasible: bool = True) -> Tuple[pd.DataFrame, pd.Series]:
         """For each record, compute the probability distribution of the logit model. A DataFrame will be returned whose
         columns match the sorted list of node names (alternatives) in the model. Probabilities over all alternatives for
         each record will sum to 1.0.
 
         Args:
-            n_threads (int): The number of threads to be used in the computation. Must be >= 1.
-            clear_scope (bool): If True data stored in the scope for utility computation will be released, freeing up
-                memory. Turning this off is of limited use.
-            logger (Logger): Optional Logger instance which reports expressions being evaluated
-            group (Hashable): Evaluate only the specified utility group. Raises KeyError if the group name is not
-                defined.
-            scale_utilities (bool): For a nested model, if True then lower-level utilities will be divided by the logsum
-                scale of the parent nest. If False, no scaling is performed. This is entirely dependant on the reported
-                form of estimated model parameters.
-            check_infeasible (bool): Flag to check for infeasible solutions (i.e., probabilities are 0 for all choices).
-                Set to ``False`` to disable the check and allow for cases where no solutions exist.
+            n_threads (int, optional): Defaults to ``1``. The number of threads to be used in the computation. Must be
+                >= 1.
+            clear_scope (bool, optional): Defaults to ``True``. If True data stored in the scope for utility computation
+                will be released, freeing up memory. Turning this off is of limited use.
+            logger (Logger, optional): Defaults to ``None``. A Logger instance which reports expressions being evaluated
+            group (Hashable, optional): Defaults to ``None``. Evaluate only the specified utility group. Raises KeyError
+                if the group name is not defined.
+            scale_utilities (bool, optional): Defaults to ``True``. For a nested model, if True then lower-level
+                utilities will be divided by the logsum scale of the parent nest. If False, no scaling is performed.
+                This is entirely dependant on the reported form of estimated model parameters.
+            check_infeasible (bool, optional): Defaults to ``True``. A flag to check for infeasible solutions (i.e.,
+                probabilities are 0 for all choices). Set to ``False`` to disable the check and allow for cases where no
+                solutions exist.
 
         Returns:
             Tuple[DataFrame, Series]: The first item returned is always the results of the model evaluation,
@@ -579,24 +599,25 @@ class ChoiceModel(object):
         nested = self.depth > 1
         if nested:
             hierarchy, levels, logsum_scales, bottom_flags = self._flatten()
-            raw_result, logsum = worker_nested_probabilities(utility_table, hierarchy, levels, logsum_scales,
-                                                             bottom_flags, scale_utilities=scale_utilities,
-                                                             check_infeasible=check_infeasible)
+            raw_result, logsum = worker_nested_probabilities(
+                utility_table, hierarchy, levels, logsum_scales, bottom_flags, scale_utilities=scale_utilities,
+                check_infeasible=check_infeasible
+            )
             result_frame = self._build_nested_stochastic_frame(raw_result)
         else:
             raw_result, logsum = worker_multinomial_probabilities(utility_table, check_infeasible=check_infeasible)
-            result_frame = DataFrame(raw_result, index=self.decision_units, columns=self.choices)
-        logsum = Series(logsum, index=self.decision_units)
+            result_frame = pd.DataFrame(raw_result, index=self.decision_units, columns=self.choices)
+        logsum = pd.Series(logsum, index=self.decision_units)
 
         return result_frame, logsum
 
-    def _build_nested_stochastic_frame(self, raw_result: ndarray) -> DataFrame:
+    def _build_nested_stochastic_frame(self, raw_result: NDArray) -> pd.DataFrame:
         elemental_index = self.elemental_choices
         choice_index = self.choices
         filter_array = choice_index.isin(elemental_index)
 
-        return DataFrame(raw_result[:, filter_array].copy(), index=self.decision_units,
-                         columns=choice_index[filter_array])
+        return pd.DataFrame(raw_result[:, filter_array].copy(), index=self.decision_units,
+                            columns=choice_index[filter_array])
 
     # endregion
 
@@ -644,7 +665,7 @@ class ChoiceModel(object):
             self._expressions.drop_group(group)
 
     def copy(self, *, decision_units: bool = True, scope_declared: bool = True, scope_assigned: bool = True,
-             expressions: bool = True, utilities: bool = True) -> 'ChoiceModel':
+             expressions: bool = True, utilities: bool = True) -> ChoiceModel:
         """Makes a shallow or deep copy of this ChoiceModel. The tree of choices is always copied.
 
         Args:
@@ -688,7 +709,7 @@ class ChoiceModel(object):
 
         return new
 
-    def copy_subset(self, mask: Series) -> 'ChoiceModel':
+    def copy_subset(self, mask: pd.Series) -> ChoiceModel:
         """Similar to ``copy()``, except applies a boolean filter Series to the decision units and stored data. This
         includes:
 
@@ -728,7 +749,7 @@ class ChoiceModel(object):
 
         return new
 
-    def add_partial_utilities(self, table: DataFrame, reindex_rows: bool = False, reindex_columns: bool = True):
+    def add_partial_utilities(self, table: pd.DataFrame, reindex_rows: bool = False, reindex_columns: bool = True):
         """Optimized function for adding partial utilities to the cached table from an external source. Faster than
         declaring a matrix symbol.
 

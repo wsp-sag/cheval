@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import abc
 from collections import deque
 from typing import (TYPE_CHECKING, Dict, Generator, Hashable, List, Optional,
@@ -21,7 +23,7 @@ if TYPE_CHECKING:
 
 class ChoiceNode(object):
 
-    def __init__(self, root: 'ChoiceModel', name: str, parent: 'ChoiceNode' = None, logsum_scale: float = 1.0,
+    def __init__(self, root: ChoiceModel, name: str, parent: ChoiceNode = None, logsum_scale: float = 1.0,
                  level: int = 0):
         assert '.' not in name, 'Choice node name cannot contain "."'
         assert name != '_', 'The name "_" by itself is reserved, but choice names can include it (.e.g. "choice_2")'

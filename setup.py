@@ -16,13 +16,13 @@ setup(
     ],
     packages=find_packages(),
     install_requires=[
-        'pandas>=0.22,<1.5',
-        'numpy>=1.14',
+        'pandas>=0.24,<1.5',
+        'numpy>=1.20',
         'astor',
-        'numba>=0.45',
+        'numba>=0.48',
         'numexpr',
         'deprecated',
         'attrs>=19.3'
     ],
-    python_requires='>=3.6'
+    python_requires='>=3.7'
 )
