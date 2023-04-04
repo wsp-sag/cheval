@@ -566,7 +566,7 @@ class ChoiceModel(object):
                 equal to the max depth of nesting. The second item is the top-level logsum term from the logit model,
                 for each decision unit.
         """
-        self.validate()
+        self.validate(group=group)
 
         # Utility computations
         expressions = self._expressions if group is None else self._expressions.get_group(group)
