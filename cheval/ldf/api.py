@@ -844,4 +844,8 @@ class LinkedDataFrame(DataFrame):
         """
         return self._links[name].other
 
+    def to_csv(self, *args, **kwargs):
+        """Write object to a comma-separated values (csv) file"""
+        return DataFrame(self).to_csv(*args, **kwargs)  # convert to a normal pd.DataFrame before exporting
+
     # endregion
