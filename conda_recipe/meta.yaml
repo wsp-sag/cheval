@@ -21,6 +21,7 @@ requirements:
     - numba >=0.48
     - numexpr
     - astor
+    - attrs >=19.3
 
 about:
   home: https://github.com/wsp-sag/cheval

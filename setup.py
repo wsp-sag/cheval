@@ -20,7 +20,8 @@ setup(
         'numpy>=1.20',
         'astor',
         'numba>=0.48',
-        'numexpr'
+        'numexpr',
+        'attrs>=19.3'
     ],
     python_requires='>=3.7'
 )
