@@ -745,10 +745,6 @@ class LinkedDataFrame(DataFrame):
         vector = ne.evaluate(new_expr.transformed, local_dict=ld, out=out, casting=casting_rule)
         return Series(vector, index=self.index)
 
-    @deprecated(reason='Use `LinkedDataFrame.evaluate()` instead, to avoid confusion over NumExpr semantics')
-    def eval(self, expr, *args, **kwargs):
-        return self.evaluate(expr, *args, **kwargs)
-
     # endregion
 
     # region Other methods
