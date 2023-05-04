@@ -1,19 +1,23 @@
 """Top-level API, including the main LinkedDataFrame class"""
-import attr
+
+from __future__ import annotations
+
 from collections import deque
-from deprecated import deprecated
+from typing import (Any, Deque, Dict, Hashable, List, Optional, Set, Tuple,
+                    Type, Union)
+
+import attr
 import numexpr as ne
 import numpy as np
 import pandas as pd
-from pandas import DataFrame, Series, Index, MultiIndex
-from typing import Any, Dict, Deque, Hashable, List, Optional, Set, Tuple, Type, Union
+from pandas import DataFrame, Index, MultiIndex, Series
 
-from .constants import LinkageSpecificationError, LinkAggregationRequired
-from .missing_data import SeriesFillManager, infer_dtype, PandasDtype
 from ..parsing.constants import NAN_STR, NAN_VAL, NEG_INF_STR, NEG_INF_VAL
-from ..parsing.expressions import Expression
 from ..parsing.expr_items import EvaluationMode
+from ..parsing.expressions import Expression
 from ..utils import convert_series, to_numpy
+from .constants import LinkageSpecificationError, LinkAggregationRequired
+from .missing_data import PandasDtype, SeriesFillManager, infer_dtype
 
 _LabelType = Union[str, List[str]]
 
@@ -85,8 +89,8 @@ class _IndexMeta:
 
 
 class _LinkMeta:
-    owner: 'LinkedDataFrame'
-    other: Union['LinkedDataFrame', DataFrame]
+    owner: LinkedDataFrame
+    other: Union[LinkedDataFrame, DataFrame]
     _other_has_links: bool
     aggregation_required: bool
     self_meta: _IndexMeta
@@ -97,9 +101,9 @@ class _LinkMeta:
     _missing_indices: Optional[Union[np.ndarray, List]]
 
     @staticmethod
-    def create(owner: 'LinkedDataFrame', other: Union['LinkedDataFrame', DataFrame], self_labels: Union[List[str], str],
+    def create(owner: LinkedDataFrame, other: Union[LinkedDataFrame, DataFrame], self_labels: Union[List[str], str],
                self_from_row_labels: bool, other_labels: Union[List[str], str], other_from_row_labels: bool,
-               precompute: bool = True) -> '_LinkMeta':
+               precompute: bool = True) -> _LinkMeta:
         self_meta = _IndexMeta(self_labels, self_from_row_labels)
         other_meta = _IndexMeta(other_labels, other_from_row_labels)
 
@@ -181,12 +185,12 @@ class _LinkMeta:
         """Top-level method to precompute the indexer"""
         self._make_indexer(*self._get_indexers())
 
-    def copy_meta(self) -> '_LinkMeta':
+    def copy_meta(self) -> _LinkMeta:
         copied = _LinkMeta(self.owner, self.other, self.self_meta, self.other_meta, self._other_has_links)
         copied.aggregation_required = self.aggregation_required
         return copied
 
-    def copy(self, indices=None) -> '_LinkMeta':
+    def copy(self, indices=None) -> _LinkMeta:
         copied = self.copy_meta()
 
         if self.flat_indexer is not None:
@@ -221,39 +225,39 @@ class LinkedDataFrame(DataFrame):
     # region Static Readers
 
     @staticmethod
-    def read_csv(*args, **kwargs) -> 'LinkedDataFrame':
+    def read_csv(*args, **kwargs) -> LinkedDataFrame:
         """Wrapper for pd.read_csv() that returns a LinkedDataFrame instead"""
         return LinkedDataFrame(pd.read_csv(*args, **kwargs))
 
     @staticmethod
-    def read_table(*args, **kwargs) -> 'LinkedDataFrame':
+    def read_table(*args, **kwargs) -> LinkedDataFrame:
         """Wrapper for pd.read_table() that returns a LinkedDataFrame instead"""
         return LinkedDataFrame(pd.read_table(*args, **kwargs))
 
     @staticmethod
-    def read_clipboard(*args, **kwargs) -> 'LinkedDataFrame':
+    def read_clipboard(*args, **kwargs) -> LinkedDataFrame:
         """Wrapper for pd.read_clipboard() that returns a LinkedDataFrame instead"""
         return LinkedDataFrame(pd.read_clipboard(*args, **kwargs))
 
     @staticmethod
-    def read_excel(*args, **kwargs) -> 'LinkedDataFrame':
+    def read_excel(*args, **kwargs) -> LinkedDataFrame:
         """Wrapper for pd.read_excel() that returns a LinkedDataFrame instead"""
         return LinkedDataFrame(pd.read_excel(*args, **kwargs))
 
     @staticmethod
-    def read_fwf(*args, **kwargs) -> 'LinkedDataFrame':
+    def read_fwf(*args, **kwargs) -> LinkedDataFrame:
         """Wrapper for pd.read_fwf() that returns a LinkedDataFrame instead"""
         return LinkedDataFrame(pd.read_fwf(*args, **kwargs))
 
     @staticmethod
-    def read_(name, *args, **kwargs) -> 'LinkedDataFrame':
+    def read_(name, *args, **kwargs) -> LinkedDataFrame:
         func = getattr(pd, f'read_{name}')
         return LinkedDataFrame(func(*args, **kwargs))
 
     # endregion
 
     @property
-    def _constructor(self) -> Type['LinkedDataFrame']:
+    def _constructor(self) -> Type[LinkedDataFrame]:
         # see https://pandas.pydata.org/docs/development/extending.html#override-constructor-properties
         return LinkedDataFrame
 
@@ -488,12 +492,12 @@ class LinkedDataFrame(DataFrame):
         """One-to-one or one-to-many node for LinkedDataFrames"""
 
         def __dir__(self):
-            df: 'LinkedDataFrame' = self._top.other
+            df: LinkedDataFrame = self._top.other
             return [str(col) for col in df.columns if str(col).isidentifier()] + df._link_names()
 
         def __getitem__(self, item):
             top = self._top
-            df: 'LinkedDataFrame' = top.other
+            df: LinkedDataFrame = top.other
 
             if df._has_link(item):
                 history_copy = self._history.copy()
@@ -522,7 +526,7 @@ class LinkedDataFrame(DataFrame):
             return self._Aggregator(self, item)
 
         class _Aggregator:
-            def __init__(self, owner: 'LinkedDataFrame._LeafAggregation', func_name: str):
+            def __init__(self, owner: LinkedDataFrame._LeafAggregation, func_name: str):
                 self._func_name = func_name
                 self._owner = owner
                 self._allow_nonnumeric = func_name in _NON_NUMERIC_AGGREGATIONS
@@ -606,7 +610,7 @@ class LinkedDataFrame(DataFrame):
     hinting may raise issues as these functions may be decorated with "@final"... we are just going to ignore that...
     """
 
-    def __finalize__(self, other: 'LinkedDataFrame', method=None, **kwargs):
+    def __finalize__(self, other: LinkedDataFrame, method=None, **kwargs):
         # Other is the parent LDF, self is the slice
         super().__finalize__(other, method=method, **kwargs)
 
@@ -626,7 +630,7 @@ class LinkedDataFrame(DataFrame):
 
         return self
 
-    def _copy_links(self, parent: 'LinkedDataFrame', reindex: bool = False):
+    def _copy_links(self, parent: LinkedDataFrame, reindex: bool = False):
         """Copies linkage information from a parent dataframe
 
         If `reindex` is True, computes an indexer based on the parent DataFrame's and
@@ -642,18 +646,18 @@ class LinkedDataFrame(DataFrame):
             link_names.add(link_name)
         self._identified_links = link_names
 
-    def __subset_links(self, target: 'LinkedDataFrame', indexer: np.ndarray):
+    def __subset_links(self, target: LinkedDataFrame, indexer: np.ndarray):
         for link_name, link_entry in self._links.items():
             target._links[link_name] = link_entry.copy(indexer)
 
     def _take_with_is_copy(self, indices, axis=0):  # pandas >= 1.0.x
-        sliced: 'LinkedDataFrame' = super()._take_with_is_copy(indices, axis=axis)
+        sliced: LinkedDataFrame = super()._take_with_is_copy(indices, axis=axis)
         if axis == 0:
             self.__subset_links(sliced, indices)
         return sliced
 
     def _take(self, indices, axis=0, is_copy=True):  # pandas < 1.0.x
-        sliced: 'LinkedDataFrame' = super()._take(indices, axis=axis, is_copy=is_copy)
+        sliced: LinkedDataFrame = super()._take(indices, axis=axis, is_copy=is_copy)
         if axis == 0:
             self.__subset_links(sliced, indices)
         return sliced
@@ -669,12 +673,12 @@ class LinkedDataFrame(DataFrame):
     def _slice(self, slobj, axis=0, kind=None):
         new_frame = super()._slice(slobj, axis=axis)
         if axis == 0 and isinstance(new_frame, LinkedDataFrame):
-            # slobj is not actually an ndarray, but a builtin <slice> Python object. Fortunately, ndarray.__getitem__()
+            # slobj is not actually a ndarray, but a builtin <slice> Python object. Fortunately, ndarray.__getitem__()
             # supports <slice> objects just as easily as integer indexers, so it just works.
             self.__subset_links(new_frame, slobj)
         return new_frame
 
-    def copy(self, deep=False) -> 'LinkedDataFrame':
+    def copy(self, deep=False) -> LinkedDataFrame:
         copied = super().copy(deep=deep)
 
         # Copy the link data
@@ -740,10 +744,6 @@ class LinkedDataFrame(DataFrame):
         casting_rule = 'same_kind' if allow_casting else 'safe'
         vector = ne.evaluate(new_expr.transformed, local_dict=ld, out=out, casting=casting_rule)
         return Series(vector, index=self.index)
-
-    @deprecated(reason='Use `LinkedDataFrame.evaluate()` instead, to avoid confusion over NumExpr semantics')
-    def eval(self, expr, *args, **kwargs):
-        return self.evaluate(expr, *args, **kwargs)
 
     # endregion
 
@@ -828,9 +828,9 @@ class LinkedDataFrame(DataFrame):
                     new_columns[item] = self.evaluate(item)
         return new_columns
 
-    def get_link_target(self, name) -> Union[DataFrame, 'LinkedDataFrame']:
+    def get_link_target(self, name) -> Union[DataFrame, LinkedDataFrame]:
         """Gets the referenced target ("other") of an outbound link. This is useful when the original reference to the
-        targeted frame is no longer available, or to to modify the fill management of that target.
+        targeted frame is no longer available, or to modify the fill management of that target.
 
         Args:
             name: The name of the link alias.
@@ -843,5 +843,9 @@ class LinkedDataFrame(DataFrame):
             KeyError: When the specified name is not a link.
         """
         return self._links[name].other
+
+    def to_csv(self, *args, **kwargs):
+        """Write object to a comma-separated values (csv) file"""
+        return DataFrame(self).to_csv(*args, **kwargs)  # convert to a normal pd.DataFrame before exporting
 
     # endregion

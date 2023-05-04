@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import ast
 from typing import Dict, Optional, Set, Tuple
 
@@ -34,7 +36,7 @@ class Expression(object):
     symbols: Set[str] = attr.ib()
 
     @staticmethod
-    def parse(e: str, prior_simple: Set[str] = None, prior_chained: Set[str] = None, mode='cheval') -> 'Expression':
+    def parse(e: str, prior_simple: Set[str] = None, prior_chained: Set[str] = None, mode='cheval') -> Expression:
         split_e, filter_ = _split_filter(e)
 
         tree = ast.parse(split_e, mode='eval').body

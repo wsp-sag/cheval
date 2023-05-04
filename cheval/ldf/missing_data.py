@@ -1,10 +1,13 @@
 """Classes for managing missing data handling"""
 
+from __future__ import annotations
+
 from contextlib import contextmanager
-import enum
+from enum import Enum
+from typing import Any, Dict
+
 import numpy as np
 import pandas as pd
-from typing import Dict, Any
 
 # Numpy dtypes are constructed on the fly, so the only way to test if a dtype is a 32-bit integer is to check using
 # strict equality (==). Initially, the collections below were sets, but then Python checks for containment by hashing
@@ -15,7 +18,7 @@ _UINT_TYPES = [np.uint8, np.uint16, np.uint32, np.uint64]
 _FLOAT_TYPES = [np.float64,  np.float32, float, np.float16, np.float32]
 
 
-class PandasDtype(enum.Enum):
+class PandasDtype(Enum):
 
     INT_NAME = 'int'
     UINT_NAME = 'uint'

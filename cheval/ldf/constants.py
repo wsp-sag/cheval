@@ -1,5 +1,5 @@
 """Common constants & exception classes for LDF"""
-from enum import Enum
+from enum import Flag
 
 
 class LinkageSpecificationError(ValueError):
@@ -7,6 +7,6 @@ class LinkageSpecificationError(ValueError):
     pass
 
 
-class LinkAggregationRequired(Enum):
+class LinkAggregationRequired(Flag):
     YES = True
     NO = False

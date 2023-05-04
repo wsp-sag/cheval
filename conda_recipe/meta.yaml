@@ -15,14 +15,12 @@ requirements:
   host:
     - python
   run:
-    - python >=3.6
-    - pandas >=0.22,<1.5
-    - numpy >=1.15
-    - numba >=0.45
-    - numexpr >=2.6
-    - astor >=0.7.1
-    - attrs >=19.3
-    - deprecated >=1.2.6
+    - python >=3.7
+    - pandas >=0.24,<1.5
+    - numpy >=1.20
+    - numba >=0.48
+    - numexpr
+    - astor
 
 about:
   home: https://github.com/wsp-sag/cheval
