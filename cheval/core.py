@@ -1,4 +1,6 @@
 """Collection of pure-Numba functions for sampling & probability computation"""
+from __future__ import annotations
+
 from typing import Tuple
 
 import numpy as np
@@ -9,12 +11,8 @@ from numba import int64 as nlong
 from numba import njit
 from numba import optional as maybe
 from numba import prange, void
-from numpy import ndarray
-
-try:
-    from numba.core.types import Tuple as NTuple
-except ModuleNotFoundError:
-    from numba.types import Tuple as NTuple  # numba < 0.48.0
+from numba.core.types import Tuple as NTuple
+from numpy.typing import NDArray
 
 MIN_RANDOM_VALUE = np.finfo(np.float64).tiny
 MAX_RANDOM_VALUE = np.iinfo(np.int32).max
@@ -25,11 +23,11 @@ TREE_INFO_TYPE = NTuple((nlong[:], nlong[:], ndouble[:]))
 class UtilityBoundsError(ValueError):
     pass
 
+
 # region Sampling
 
-
-@njit(nlong(ndouble[:], ndouble), nogil=True)
-def sample_once(p_array: ndarray, r: float) -> int:
+@njit(nlong(ndouble[:], ndouble), nogil=True, cache=True)
+def sample_once(p_array: NDArray, r: float) -> int:
     r = max(r, MIN_RANDOM_VALUE)
     cumsum = 0.0
     index = 0
@@ -41,11 +39,10 @@ def sample_once(p_array: ndarray, r: float) -> int:
     return len(p_array) - 1
 
 
-@njit(nlong(ndouble, ndouble[:]), nogil=True)
-def logarithmic_search(r: float, cps: ndarray) -> int:
-    """
-    Logarithmic (binary) search algorithm for finding the greatest index whose cumulative probability is <= the random
-    draw.
+@njit(nlong(ndouble, ndouble[:]), nogil=True, cache=True)
+def logarithmic_search(r: float, cps: NDArray) -> int:
+    """Logarithmic (binary) search algorithm for finding the greatest index whose cumulative probability is <= the
+    random draw.
 
     Allows for cells with 0 probability.
 
@@ -53,7 +50,8 @@ def logarithmic_search(r: float, cps: ndarray) -> int:
         r (float): The random draw to compare against.
         cps (float[]): The cumulative probabilities to search
 
-    Returns (int): The found index.
+    Returns:
+        int: The found index.
     """
 
     # The check below is required to avoid a very specific edge case in which there is more than one 0-probability
@@ -80,8 +78,8 @@ def logarithmic_search(r: float, cps: ndarray) -> int:
         return upper_bound
 
 
-@njit(void(ndouble[:]), nogil=True)
-def nbf_cumsum(array: ndarray):
+@njit(void(ndouble[:]), nogil=True, cache=True)
+def nbf_cumsum(array: NDArray):
     accum = 0.0
     length = len(array)
     for i in range(length):
@@ -89,22 +87,22 @@ def nbf_cumsum(array: ndarray):
         array[i] = accum
 
 
-@njit(nlong[:](nlong, nlong), nogil=True)
-def generate_rand_ints_for_parallel(seed: int, n: int) -> ndarray:
+@njit(nlong[:](nlong, nlong), nogil=True, cache=True)
+def generate_rand_ints_for_parallel(seed: int, n: int) -> NDArray:
     """Wrap random sampling in a separate function with parallel=False for stable results"""
     np.random.seed(seed)
     return np.random.randint(0, MAX_RANDOM_VALUE, n)
 
 
-@njit(ndouble[:](nlong, nlong), nogil=True)
-def generate_rand_floats_for_parallel(seed: int, n: int) -> ndarray:
+@njit(ndouble[:](nlong, nlong), nogil=True, cache=True)
+def generate_rand_floats_for_parallel(seed: int, n: int) -> NDArray:
     """Wrap random sampling in a separate function with parallel=False for stable results"""
     np.random.seed(seed)
     return np.random.uniform(MIN_RANDOM_VALUE, 1, n)
 
 
-@njit(nlong[:](ndouble[:], nlong, nlong, maybe(nlong[:])), nogil=True)
-def sample_multi(p_array: ndarray, n: int, random_seed: int, out_array: ndarray = None) -> ndarray:
+@njit(nlong[:](ndouble[:], nlong, nlong, maybe(nlong[:])), nogil=True, cache=True)
+def sample_multi(p_array: NDArray, n: int, random_seed: int, out_array: NDArray = None) -> NDArray:
     """Sample from a probability distribution multiple times using binary search"""
     np.random.seed(random_seed)
 
@@ -122,18 +120,18 @@ def sample_multi(p_array: ndarray, n: int, random_seed: int, out_array: ndarray 
 
 # endregion
 
+
 # region Probability Computation
 
-
-@njit(ndouble[:](ndouble[:]), nogil=True)
-def simple_probabilities(weights: ndarray) -> ndarray:
+@njit(ndouble[:](ndouble[:]), nogil=True, cache=True)
+def simple_probabilities(weights: NDArray) -> NDArray:
     return weights / weights.sum()
 
 
 @njit([
     NTuple((ndouble[:], ndouble))(ndouble[:], nbool), NTuple((ndouble[:], ndouble))(nfloat[:], nbool)
-], nogil=True)
-def multinomial_probabilities(utilities: ndarray, check_infeasible=True) -> Tuple[ndarray, float]:
+], nogil=True, cache=True)
+def multinomial_probabilities(utilities: NDArray, check_infeasible=True) -> Tuple[NDArray, float]:
     """Computes probabilities given a multinomial logit model formulation."""
     n_cols = len(utilities)
     p = np.zeros(n_cols, dtype=np.float64)  # Return value
@@ -159,9 +157,9 @@ def multinomial_probabilities(utilities: ndarray, check_infeasible=True) -> Tupl
 @njit([
     NTuple((ndouble[:], ndouble))(ndouble[:], nlong[:], nlong[:], ndouble[:], nbool[:], nbool, nbool),
     NTuple((ndouble[:], ndouble))(nfloat[:], nlong[:], nlong[:], ndouble[:], nbool[:], nbool, nbool)
-], nogil=True)
-def nested_probabilities(utilities: ndarray, hierarchy, levels, logsum_scales, bottom_flags, scale_utilities=True,
-                         check_infeasible=True) -> Tuple[ndarray, float]:
+], nogil=True, cache=True)
+def nested_probabilities(utilities: NDArray, hierarchy, levels, logsum_scales, bottom_flags, scale_utilities=True,
+                         check_infeasible=True) -> Tuple[NDArray, float]:
     """Probability evaluation of a nested logit model, without needing a tree structure or any recursion."""
 
     n_cells = len(utilities)
@@ -233,18 +231,18 @@ def nested_probabilities(utilities: ndarray, hierarchy, levels, logsum_scales, b
 
 # endregion
 
+
 # region Middle functions
 
-
-@njit(nlong(ndouble[:], ndouble), nogil=True)
-def simple_sample(weights: ndarray, r: float) -> int:
+@njit(nlong(ndouble[:], ndouble), nogil=True, cache=True)
+def simple_sample(weights: NDArray, r: float) -> int:
     """Samples once from an array of weights, from an existing random draw"""
     p_array = simple_probabilities(weights)
     return sample_once(p_array, r)
 
 
-@njit(nlong[:](ndouble[:], nlong, nlong, maybe(nlong[:])), nogil=True)
-def simple_multisample(weights: ndarray, n: int, seed: int, out: ndarray = None) -> ndarray:
+@njit(nlong[:](ndouble[:], nlong, nlong, maybe(nlong[:])), nogil=True, cache=True)
+def simple_multisample(weights: NDArray, n: int, seed: int, out: NDArray = None) -> NDArray:
     """Samples multiple times from an array of weights, based on a random seed. Thread-safe."""
     p_array = simple_probabilities(weights)
     return sample_multi(p_array, n, seed, out)
@@ -253,8 +251,8 @@ def simple_multisample(weights: ndarray, n: int, seed: int, out: ndarray = None)
 @njit([
     NTuple((nlong, ndouble))(ndouble[:], ndouble),
     NTuple((nlong, ndouble))(nfloat[:], ndouble)
-], nogil=True)
-def multinomial_sample(utilities: ndarray, r: float) -> Tuple[int, float]:
+], nogil=True, cache=True)
+def multinomial_sample(utilities: NDArray, r: float) -> Tuple[int, float]:
     """Samples once from an array of multinomial logit utilities, from an existing random draw"""
     p_array, ls = multinomial_probabilities(utilities, check_infeasible=True)  # Check infeasible req'd (for sampling)
     return sample_once(p_array, r), ls
@@ -263,8 +261,8 @@ def multinomial_sample(utilities: ndarray, r: float) -> Tuple[int, float]:
 @njit([
     NTuple((nlong[:], ndouble))(ndouble[:], nlong, nlong, maybe(nlong[:])),
     NTuple((nlong[:], ndouble))(nfloat[:], nlong, nlong, maybe(nlong[:]))
-], nogil=True)
-def multinomial_multisample(utilities: ndarray, n: int, seed: int, out: ndarray = None) -> Tuple[np.ndarray, float]:
+], nogil=True, cache=True)
+def multinomial_multisample(utilities: NDArray, n: int, seed: int, out: NDArray = None) -> Tuple[NDArray, float]:
     """Samples multiple times from an array of multinomial logit utilities, based on a random seed. Thread-safe."""
     p_array, ls = multinomial_probabilities(utilities, check_infeasible=True)  # Check infeasible req'd (for sampling)
     return sample_multi(p_array, n, seed, out), ls
@@ -273,8 +271,8 @@ def multinomial_multisample(utilities: ndarray, n: int, seed: int, out: ndarray 
 @njit([
     NTuple((nlong, ndouble))(ndouble[:], ndouble, nlong[:], nlong[:], ndouble[:], nbool[:], nbool),
     NTuple((nlong, ndouble))(nfloat[:], ndouble, nlong[:], nlong[:], ndouble[:], nbool[:], nbool)
-], nogil=True)
-def nested_sample(utilities: ndarray, r: float, parents, levels, ls_scales, bottom_flags, scale_utilities=True
+], nogil=True, cache=True)
+def nested_sample(utilities: NDArray, r: float, parents, levels, ls_scales, bottom_flags, scale_utilities=True
                   ) -> Tuple[int, float]:
     """Samples once from an array of nested logit utilities, from an existing random draw"""
     p_array, ls = nested_probabilities(
@@ -287,23 +285,22 @@ def nested_sample(utilities: ndarray, r: float, parents, levels, ls_scales, bott
 @njit([
     NTuple((nlong[:], ndouble))(ndouble[:], nlong[:], nlong[:], ndouble[:], nbool[:], nlong, nlong, maybe(nlong[:]), nbool),
     NTuple((nlong[:], ndouble))(nfloat[:], nlong[:], nlong[:], ndouble[:], nbool[:], nlong, nlong, maybe(nlong[:]), nbool)
-], nogil=True)
-def nested_multisample(utilities: ndarray, parents, levels, ls_scales, bottom_flags, n: int, seed: int,
-                       out: ndarray = None, scale_utilities=True) -> Tuple[ndarray, float]:
+], nogil=True, cache=True)
+def nested_multisample(utilities: NDArray, parents, levels, ls_scales, bottom_flags, n: int, seed: int,
+                       out: NDArray = None, scale_utilities=True) -> Tuple[NDArray, float]:
     """Samples multiple times from an array of nested logit utilities, based on a random seed. Thread-safe."""
     p_array, ls = nested_probabilities(
         utilities, parents, levels, ls_scales, bottom_flags, scale_utilities=scale_utilities, check_infeasible=True
     )  # Check infeasible req'd (for sampling)
     return sample_multi(p_array, n, seed, out), ls
 
-
 # endregion
+
 
 # region High level functions
 
-
-@njit(nlong[:, :](ndouble[:, :], nlong, nlong), parallel=True, nogil=True)
-def worker_weighted_sample(weights: ndarray, n: int, seed: int) -> ndarray:
+@njit(nlong[:, :](ndouble[:, :], nlong, nlong), parallel=True, nogil=True, cache=True)
+def worker_weighted_sample(weights: NDArray, n: int, seed: int) -> NDArray:
     n_rows = weights.shape[0]
     result = np.zeros((n_rows, n), dtype=np.int64)
 
@@ -326,8 +323,8 @@ def worker_weighted_sample(weights: ndarray, n: int, seed: int) -> ndarray:
 @njit([
     NTuple((nlong[:, :], ndouble[:]))(ndouble[:, :], nlong, nlong),
     NTuple((nlong[:, :], ndouble[:]))(nfloat[:, :], nlong, nlong)
-], parallel=True, nogil=True)
-def worker_multinomial_sample(utilities: ndarray, n: int, seed: int) -> Tuple[ndarray, ndarray]:
+], parallel=True, nogil=True, cache=True)
+def worker_multinomial_sample(utilities: NDArray, n: int, seed: int) -> Tuple[NDArray, NDArray]:
     """Runs multinomial_sample or multinomial_multisample in parallel."""
     n_rows = utilities.shape[0]
     result = np.zeros((n_rows, n), dtype=np.int64)
@@ -353,8 +350,8 @@ def worker_multinomial_sample(utilities: ndarray, n: int, seed: int) -> Tuple[nd
 @njit([
     NTuple((ndouble[:, :], ndouble[:]))(ndouble[:, :], nbool),
     NTuple((ndouble[:, :], ndouble[:]))(nfloat[:, :], nbool)
-], parallel=True, nogil=True)
-def worker_multinomial_probabilities(utilities: ndarray, check_infeasible=True) -> Tuple[ndarray, ndarray]:
+], parallel=True, nogil=True, cache=True)
+def worker_multinomial_probabilities(utilities: NDArray, check_infeasible=True) -> Tuple[NDArray, NDArray]:
     """Runs multinomial_probabilities in parallel"""
     n_rows, n_cols = utilities.shape
     result = np.zeros((n_rows, n_cols), dtype=np.float64)
@@ -372,22 +369,22 @@ def worker_multinomial_probabilities(utilities: ndarray, check_infeasible=True) 
 @njit([
     NTuple((nlong[:, :], ndouble[:]))(ndouble[:, :], nlong[:], nlong[:], ndouble[:], nbool[:], nlong, nlong, nbool),
     NTuple((nlong[:, :], ndouble[:]))(nfloat[:, :], nlong[:], nlong[:], ndouble[:], nbool[:], nlong, nlong, nbool)
-], parallel=True, nogil=True)
-def worker_nested_sample(utilities: ndarray, parents, levels, ls_scales, bottom_flags, n: int, seed: int,
-                         scale_utilities=True) -> Tuple[ndarray, ndarray]:
+], parallel=True, nogil=True, cache=True)
+def worker_nested_sample(utilities: NDArray, parents, levels, ls_scales, bottom_flags, n: int, seed: int,
+                         scale_utilities=True) -> Tuple[NDArray, NDArray]:
     """Runs nested_sample or nested_multisample in parallel."""
     n_rows = len(utilities)
     result = np.zeros((n_rows, n), dtype=np.int64)
     ls_array = np.zeros(n_rows, dtype=np.float64)
 
-    np.random.seed(seed)
     if n <= 1:
         r_array = generate_rand_floats_for_parallel(seed, n_rows)
         for i in prange(n_rows):
             utility_row = utilities[i, :]
             r = r_array[i]
-            this_result, ls = nested_sample(utility_row, r, parents, levels, ls_scales, bottom_flags,
-                                            scale_utilities=scale_utilities)
+            this_result, ls = nested_sample(
+                utility_row, r, parents, levels, ls_scales, bottom_flags, scale_utilities=scale_utilities
+            )
             result[i, 0] = this_result
             ls_array[i] = ls
     else:
@@ -395,8 +392,10 @@ def worker_nested_sample(utilities: ndarray, parents, levels, ls_scales, bottom_
         for i in prange(n_rows):
             utility_row = utilities[i, :]
             seed_i = seed_array[i]
-            _, ls = nested_multisample(utility_row, parents, levels, ls_scales, bottom_flags, n, seed_i, result[i, :],
-                                       scale_utilities=scale_utilities)
+            _, ls = nested_multisample(
+                utility_row, parents, levels, ls_scales, bottom_flags, n, seed_i, result[i, :],
+                scale_utilities=scale_utilities
+            )
             ls_array[i] = ls
     return result, ls_array
 
@@ -404,9 +403,9 @@ def worker_nested_sample(utilities: ndarray, parents, levels, ls_scales, bottom_
 @njit([
     NTuple((ndouble[:, :], ndouble[:]))(ndouble[:, :], nlong[:], nlong[:], ndouble[:], nbool[:], nbool, nbool),
     NTuple((ndouble[:, :], ndouble[:]))(nfloat[:, :], nlong[:], nlong[:], ndouble[:], nbool[:], nbool, nbool)
-], parallel=True, nogil=True)
-def worker_nested_probabilities(utilities: ndarray, parents, levels, ls_scales, bottom_flags, scale_utilities=True,
-                                check_infeasible=True) -> Tuple[ndarray, ndarray]:
+], parallel=True, nogil=True, cache=True)
+def worker_nested_probabilities(utilities: NDArray, parents, levels, ls_scales, bottom_flags, scale_utilities=True,
+                                check_infeasible=True) -> Tuple[NDArray, NDArray]:
     """Runs nested_probabilities in parallel"""
     n_rows, n_cols = utilities.shape
     result = np.zeros((n_rows, n_cols), dtype=np.float64)
@@ -414,19 +413,21 @@ def worker_nested_probabilities(utilities: ndarray, parents, levels, ls_scales, 
 
     for i in prange(n_rows):
         utility_row = utilities[i, :]
-        p_array, ls = nested_probabilities(utility_row, parents, levels, ls_scales, bottom_flags,
-                                           scale_utilities=scale_utilities, check_infeasible=check_infeasible)
+        p_array, ls = nested_probabilities(
+            utility_row, parents, levels, ls_scales, bottom_flags, scale_utilities=scale_utilities,
+            check_infeasible=check_infeasible
+        )
         result[i, :] = p_array
         ls_array[i] = ls
 
     return result, ls_array
 
-
 # endregion
+
 
 # region Misc functions
 
-def fast_indexed_add(out: ndarray, addition: ndarray, row_index: ndarray = None, col_index: ndarray = None):
+def fast_indexed_add(out: NDArray, addition: NDArray, row_index: NDArray = None, col_index: NDArray = None):
     """Parallel "a += b" function for large matrices. Also allows "a[:, indexer] += b" for partial tables."""
     rows_a, cols_a = addition.shape
     rows_o, cols_o = out.shape
@@ -455,7 +456,7 @@ def fast_indexed_add(out: ndarray, addition: ndarray, row_index: ndarray = None,
         _fast_indexed_add_i_i(out, addition, row_index, col_index)
 
 
-@njit(parallel=True)
+@njit(parallel=True, cache=True)
 def _fast_indexed_add_n_n(out, addition):
     rows_a, cols_a = addition.shape
     for offset in prange(rows_a * cols_a):
@@ -464,7 +465,7 @@ def _fast_indexed_add_n_n(out, addition):
         out[rowi, coli] += addition[rowi, coli]
 
 
-@njit(parallel=True)
+@njit(parallel=True, cache=True)
 def _fast_indexed_add_n_i(out, addition, col_index):
     rows_a, cols_a = addition.shape
     for offset in prange(0, rows_a * cols_a):
@@ -474,7 +475,7 @@ def _fast_indexed_add_n_i(out, addition, col_index):
         out[rowi, target_col] += addition[rowi, coli]
 
 
-@njit(parallel=True)
+@njit(parallel=True, cache=True)
 def _fast_indexed_add_i_n(out, addition, row_index):
     rows_a, cols_a = addition.shape
     for offset in prange(rows_a * cols_a):
@@ -484,7 +485,7 @@ def _fast_indexed_add_i_n(out, addition, row_index):
         out[target_row, coli] += addition[rowi, coli]
 
 
-@njit(parallel=True)
+@njit(parallel=True, cache=True)
 def _fast_indexed_add_i_i(out, addition, row_index, col_index):
     rows_a, cols_a = addition.shape
     for offset in prange(rows_a * cols_a):

@@ -1,13 +1,16 @@
+from __future__ import annotations
+
 from typing import Union
 
 import numpy as np
 import pandas as pd
+from numpy.typing import NDArray
 from pandas.api.types import is_integer_dtype
 
 _USE_TO_NUMPY = hasattr(pd.Series, 'to_numpy')
 
 
-def to_numpy(frame_or_series: Union[pd.DataFrame, pd.Series, pd.Index], ignore_check: bool = False) -> np.ndarray:
+def to_numpy(frame_or_series: Union[pd.DataFrame, pd.Series, pd.Index], ignore_check: bool = False) -> NDArray:
     """A helper function compatible with all versions of pandas to access numpy arrays. Set `ignore_check=True` to save
     the computational cost of confirming that `.to_numpy()` does not produce a copy of `frame_or_series` values."""
     arr = frame_or_series.to_numpy(copy=False) if _USE_TO_NUMPY else frame_or_series.values
@@ -17,7 +20,7 @@ def to_numpy(frame_or_series: Union[pd.DataFrame, pd.Series, pd.Index], ignore_c
     return arr
 
 
-def convert_series(s: pd.Series, allow_raw: bool = False) -> np.ndarray:
+def convert_series(s: pd.Series, allow_raw: bool = False) -> NDArray:
     dtype = s.dtype
 
     if is_integer_dtype(dtype) and _USE_TO_NUMPY:
