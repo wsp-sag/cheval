@@ -1,2 +1,2 @@
 from .api import LinkedDataFrame
-from .constants import LinkAggregationRequired, LinkageSpecificationError
+from .constants import LinkageSpecificationError, LinkAggregationRequired
