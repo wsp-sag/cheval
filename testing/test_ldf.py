@@ -1,3 +1,4 @@
+import numpy as np
 import pandas as pd
 from pandas.testing import assert_series_equal, assert_frame_equal
 
@@ -211,3 +212,59 @@ def test_bool_columns():
     expected_result = pd.Series([1, 0, 0, 1], index=households.index)
 
     assert_series_equal(test_result, expected_result)
+
+
+def test_missing_linkage():
+    """Test that linkages with missing values get handled correctly
+
+    If a linkage is made where some rows in the linkage originator do not match
+    with any rows in the linkage target, the LDF should link any rows which do
+    match, and use a default value to fill any rows with "missing" lookups to
+    the target.
+
+    The test for slicing the linked dataframe is a regression test for an error
+    where the linkage's missing rows information was not updated during slices
+    or re-indexing. These test the invariant
+    ```ldf[slice][linkage][column] == ldf[linkage][column][slice]```
+    """
+    df1 = {
+        "df2_id": [0, 1, 2, 3]
+    }
+    df2 = {
+        "idx": [0, 1, 2],
+        "float_value": [0.0, 1.0, 2.0],
+        "int_value": [0, 1, 2],
+    }
+    df1 = pd.DataFrame(df1)
+    df2 = pd.DataFrame(df2)
+
+    df1 = LinkedDataFrame(df1)
+    df2 = LinkedDataFrame(df2)
+
+    df1.link_to(df2, "df2", on_self="df2_id", on_other="idx")
+
+    # Test filling values for floats
+    test_result = df1["df2"]["float_value"]
+    expected_full_float = pd.Series([0.0, 1.0, 2.0, np.nan], index=df1.index)
+    assert_series_equal(test_result, expected_full_float)
+
+    # Test filling values for ints
+    test_result = df1["df2"]["int_value"]
+    expected_full_int = pd.Series([0, 1, 2, 0], index=df1.index)
+    assert_series_equal(test_result, expected_full_int)
+
+    # Test that the missing values are still handled correctly when we take a slice
+    slice_indexes = [3, 2]
+    slice_df = df1.loc[slice_indexes]
+
+    # For floats
+    test_result = slice_df["df2"]["float_value"]
+    expected_slice_float = pd.Series([np.nan, 2.0], index=slice_df.index)
+    assert_series_equal(expected_slice_float, expected_full_float.loc[slice_indexes])
+    assert_series_equal(test_result, expected_slice_float)
+
+    # For ints
+    test_result = slice_df["df2"]["int_value"]
+    expected_slice_int = pd.Series([0, 2], index=slice_df.index)
+    assert_series_equal(expected_slice_int, expected_full_int.loc[slice_indexes])
+    assert_series_equal(test_result, expected_slice_int)

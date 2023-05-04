@@ -94,7 +94,7 @@ class _LinkMeta:
 
     flat_indexer: Optional[np.ndarray]
     other_grouper: Optional[np.ndarray]
-    missing_indices: Optional[Union[np.ndarray, List]]
+    _missing_indices: Optional[Union[np.ndarray, List]]
 
     @staticmethod
     def create(owner: 'LinkedDataFrame', other: Union['LinkedDataFrame', DataFrame], self_labels: Union[List[str], str],
@@ -121,7 +121,7 @@ class _LinkMeta:
         self.aggregation_required = False
         self.flat_indexer = None
         self.other_grouper = None
-        self.missing_indices = None
+        self._missing_indices = None
 
     def _determine_aggregation(self, precompute):
         self_indexer = self.self_meta.get_indexer(self.owner)
@@ -150,17 +150,20 @@ class _LinkMeta:
         if self.aggregation_required:
             group_ints, group_order = other_indexer.factorize()
             self.other_grouper = group_ints
-            self.flat_indexer, self.missing_indices = group_order.get_indexer_non_unique(self_indexer)
+            self.flat_indexer = group_order.get_indexer(self_indexer)
         else:  # Performance-tuned fast paths for constructing indexers
             if self_indexer.equals(other_indexer):  # Indexers are identical
                 self.flat_indexer = np.arange(len(other_indexer))
-                self.missing_indices = np.array([], dtype=int)
-            elif len(self_indexer.difference(other_indexer)) == 0:  # No missing values
-                # Taking the difference is faster than `all(.isin())`
-                self.missing_indices = np.array([], dtype=int)
+            else:
+                # Originally, different logic was used if the self indexer didn't map cleanly onto the other indexer
+                # (the other was missing values, or the self had NaNs).
+                # Those were combined into a single case for performance purposes
                 self.flat_indexer = other_indexer.get_indexer(self_indexer)
-            else:  # All other cases
-                self.flat_indexer, self.missing_indices = other_indexer.get_indexer_non_unique(self_indexer)
+
+    def _compute_missing_indices(self):
+        """Initializes `missing_indices` by finding the rows which do not have any linkages
+        """
+        self._missing_indices = np.nonzero(self.flat_indexer == -1)[0]
 
     @property
     def chained(self) -> bool:
@@ -168,9 +171,11 @@ class _LinkMeta:
 
     @property
     def indexer_and_missing(self) -> Tuple[np.ndarray, np.ndarray]:
-        if (self.flat_indexer is None) or (self.missing_indices is None):
+        if self.flat_indexer is None:
             self.precompute()
-        return self.flat_indexer, self.missing_indices
+        if self._missing_indices is None:
+            self._compute_missing_indices()
+        return self.flat_indexer, self._missing_indices
 
     def precompute(self):
         """Top-level method to precompute the indexer"""
@@ -187,14 +192,10 @@ class _LinkMeta:
         if self.flat_indexer is not None:
             copied.flat_indexer = self.flat_indexer[indices] if indices is not None else self.flat_indexer
 
-        if isinstance(self.missing_indices, list):
-            copied.missing_indices = []
-        elif isinstance(self.missing_indices, np.ndarray):
-            if (indices is not None) and (len(self.missing_indices) > 0):
-                mask = np.isin(self.missing_indices, indices)
-                copied.missing_indices = self.missing_indices[mask]
-            else:
-                copied.missing_indices = self.missing_indices[:]
+        # If we are not taking a slice, copy missing indices (if they exist)
+        # If we are taking a slice, leave missing indices to be lazy-computed
+        if indices is None:
+            copied._missing_indices = self._missing_indices
 
         if self.other_grouper is not None:
             copied.other_grouper = self.other_grouper
