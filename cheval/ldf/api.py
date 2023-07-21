@@ -6,7 +6,6 @@ from collections import deque
 from typing import (Any, Deque, Dict, Hashable, List, Optional, Set, Tuple,
                     Type, Union)
 
-import attr
 import numexpr as ne
 import numpy as np
 import pandas as pd
@@ -28,9 +27,6 @@ _NUMERIC_TYPES = {PandasDtype.INT_NAME, PandasDtype.UINT_NAME, PandasDtype.FLOAT
 
 
 class _IndexMeta:
-
-    labels: List[str] = attr.ib(converter=lambda x: [x] if isinstance(x, str) else list(x))
-    from_row_labels: bool = attr.ib()
 
     def __init__(self, labels: Union[str, List[str]] = None, from_row_labels: bool = True):
         if isinstance(labels, str):

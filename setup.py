@@ -21,7 +21,7 @@ setup(
         'astor',
         'numba>=0.48',
         'numexpr',
-        'attrs>=19.3'
+        'attrs>=23.1'
     ],
     python_requires='>=3.7'
 )
