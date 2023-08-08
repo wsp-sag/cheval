@@ -422,8 +422,7 @@ class ChoiceModel(object):
         if nested:
             hierarchy, levels, logsum_scales, bottom_flags = self._flatten()
             raw_result, logsum = worker_nested_sample(
-                utility_table, hierarchy, levels, logsum_scales, bottom_flags, n_draws, random_seed,
-                scale_utilities=scale_utilities
+                utility_table, hierarchy, levels, logsum_scales, bottom_flags, n_draws, random_seed, scale_utilities
             )
         else:
             raw_result, logsum = worker_multinomial_sample(utility_table, n_draws, random_seed)
@@ -601,14 +600,11 @@ class ChoiceModel(object):
         if nested:
             hierarchy, levels, logsum_scales, bottom_flags = self._flatten()
             raw_result, top_lvl_ls, nested_ls = worker_nested_probabilities(
-                utility_table, hierarchy, levels, logsum_scales, bottom_flags, scale_utilities=scale_utilities,
-                check_infeasible=check_infeasible
+                utility_table, hierarchy, levels, logsum_scales, bottom_flags, scale_utilities, check_infeasible
             )
             result_frame = self._build_nested_stochastic_frame(raw_result)
         else:
-            raw_result, top_lvl_ls, nested_ls = worker_multinomial_probabilities(
-                utility_table, check_infeasible=check_infeasible
-            )
+            raw_result, top_lvl_ls, nested_ls = worker_multinomial_probabilities(utility_table, check_infeasible)
             result_frame = pd.DataFrame(raw_result, index=self.decision_units, columns=self.choices)
         top_lvl_ls = pd.Series(top_lvl_ls, index=self.decision_units)
         nested_ls = pd.DataFrame(nested_ls, index=self.decision_units, columns=self.choices)
