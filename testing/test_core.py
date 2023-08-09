@@ -1,12 +1,16 @@
 from bisect import bisect_right
+
 import numpy as np
 from numpy.testing import assert_allclose, assert_equal
 
-from ..cheval.core import (
-    MIN_RANDOM_VALUE, sample_once, logarithmic_search, sample_multi, simple_probabilities, multinomial_probabilities,
-    nested_probabilities, simple_sample, multinomial_sample, multinomial_multisample, nested_sample, nested_multisample,
-    worker_multinomial_sample, worker_multinomial_probabilities, worker_nested_sample, worker_nested_probabilities
-)
+from ..cheval.core import (MIN_RANDOM_VALUE, logarithmic_search,
+                           multinomial_multisample, multinomial_probabilities,
+                           multinomial_sample, nested_multisample,
+                           nested_probabilities, nested_sample, sample_multi,
+                           sample_once, simple_probabilities, simple_sample,
+                           worker_multinomial_probabilities,
+                           worker_multinomial_sample,
+                           worker_nested_probabilities, worker_nested_sample)
 from ..cheval.model import ChoiceModel
 
 
@@ -124,7 +128,7 @@ def test_multinomial_probabilities():
     )
     expected_ls = 29.4585222
 
-    test_result, test_ls = multinomial_probabilities(utilities)
+    test_result, test_ls, _ = multinomial_probabilities(utilities, True)
 
     assert_allclose(test_result, expected_result, rtol=0.000001)
     assert abs(expected_ls - test_ls) < 0.000001
@@ -133,7 +137,7 @@ def test_multinomial_probabilities():
 def test_nested_probabilities():
     utilities = np.float64([-0.001, -1.5, -0.5, -0.005, -1, -0.075, -0.3, -0.9])
     tree_info = _build_nested_tree()
-    test_result, test_ls = nested_probabilities(utilities, *tree_info)
+    test_result, test_ls, _ = nested_probabilities(utilities, *tree_info, True, True)
 
     # Auto, Auto-carpool, auto-drive, transit, transit-bus, transit-train, train-bus, train-walk
     expected_result = np.float64([0, 0.085207, 0.355547, 0, 0.156274, 0, 0.354937, 0.048035])
@@ -166,7 +170,7 @@ def test_simple_sample():
 
 def test_multinomial_sample():
     utilities = np.float64([1.678, 1.689, 1.348, 0.903, 1.845, 0.877, 0.704, 0.482])
-    probabilities, _ = multinomial_probabilities(utilities)
+    probabilities, _, _ = multinomial_probabilities(utilities, True)
 
     draws, expected_indices = _cp_midpoints(probabilities)
 
@@ -177,7 +181,7 @@ def test_multinomial_sample():
 
 def test_multinomial_multisample():
     utilities = np.float64([1.678, 1.689, 1.348, 0.903, 1.845, 0.877, 0.704, 0.482])
-    probabilities, _ = multinomial_probabilities(utilities)
+    probabilities, _, _ = multinomial_probabilities(utilities, True)
 
     n_draws, seed = 100, 1
 
@@ -193,27 +197,27 @@ def test_nested_sample():
     utilities = np.float64([-0.001, -1.5, -0.5, -0.005, -1, -0.075, -0.3, -0.9])
     tree_info = _build_nested_tree()
 
-    probabilities, _ = nested_probabilities(utilities, *tree_info)
+    probabilities, _, _ = nested_probabilities(utilities, *tree_info, True, True)
 
     draws, expected_indices = _cp_midpoints(probabilities)
 
     for n, (draw, expected_index) in enumerate(zip(draws, expected_indices)):
-        test_result, _ = nested_sample(utilities, draw, *tree_info)
+        test_result, _ = nested_sample(utilities, draw, *tree_info, True)
         assert test_result == expected_index, f"Test {n}: Expected={expected_index} Actual={test_result}"
 
 
 def test_nested_multisample():
     utilities = np.float64([-0.001, -1.5, -0.5, -0.005, -1, -0.075, -0.3, -0.9])
     tree_info = _build_nested_tree()
-    probabilities, _ = nested_probabilities(utilities, *tree_info)
+    probabilities, _, _ = nested_probabilities(utilities, *tree_info, True, True)
 
     n_draws, seed = 100, 1
 
-    test_results, _ = nested_multisample(utilities, *tree_info, n_draws, seed, None)
+    test_results, _ = nested_multisample(utilities, *tree_info, n_draws, seed, True, out=None)
 
     draws = _randomize(n_draws, seed)
     for r, test_result in zip(draws, test_results):
-        expected_result, _ = nested_sample(utilities, r, *tree_info)
+        expected_result, _ = nested_sample(utilities, r, *tree_info, True)
         assert expected_result == test_result
 
 # endregion
@@ -240,11 +244,11 @@ def test_worker_multinomial_probabilities():
     n_rows, n_cols, util_seed = 5, 6, 7
     utilities = -_randomize((n_rows, n_cols), seed=util_seed)
 
-    test_results, _ = worker_multinomial_probabilities(utilities)
+    test_results, _, _ = worker_multinomial_probabilities(utilities, True)
 
     for row in range(n_rows):
         util_row = utilities[row]
-        expected_result, _ = multinomial_probabilities(util_row)
+        expected_result, _, _ = multinomial_probabilities(util_row, True)
         assert_allclose(test_results[row], expected_result)
 
 
@@ -253,13 +257,13 @@ def test_worker_nested_sample():
     utilities = -_randomize((n_rows, n_cols), seed=util_seed)
     tree_info = _build_nested_tree()
 
-    test_results, _ = worker_nested_sample(utilities, *tree_info, 1, seed=sample_seed)
+    test_results, _ = worker_nested_sample(utilities, *tree_info, 1, sample_seed, True)
 
     draws = _randomize(n_rows, sample_seed)
     for row in range(n_rows):
         util_row = utilities[row]
         r = draws[row]
-        expected_result, _ = nested_sample(util_row, r, *tree_info)
+        expected_result, _ = nested_sample(util_row, r, *tree_info, True)
 
         assert test_results[row] == expected_result
 
@@ -269,11 +273,11 @@ def test_worker_nested_probabilities():
     utilities = -_randomize((n_rows, n_cols), seed=util_seed)
     tree_info = _build_nested_tree()
 
-    test_results, _ = worker_nested_probabilities(utilities, *tree_info)
+    test_results, _, _ = worker_nested_probabilities(utilities, *tree_info, True, True)
 
     for row in range(n_rows):
         util_row = utilities[row]
-        expected_result, _ = nested_probabilities(util_row, *tree_info)
+        expected_result, _, _ = nested_probabilities(util_row, *tree_info, True, True)
         assert_allclose(test_results[row], expected_result)
 
-# end region
+# endregion

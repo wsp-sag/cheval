@@ -391,7 +391,7 @@ class ChoiceModel(object):
             logger (Logger, optional): Defaults to ``None``. A Logger instance which reports expressions being evaluated
             scale_utilities (bool, optional): Defaults to ``True``. For a nested model, if True then lower-level
                 utilities will be divided by the logsum scale of the parent nest. If False, no scaling is performed.
-                This is entirely dependant on the reported form of estimated model parameters.
+                This is entirely dependent on the reported form of estimated model parameters.
 
         Returns:
             Tuple[DataFrame | Series, Series]: The first item returned is always the results of the model evaluation,
@@ -422,8 +422,7 @@ class ChoiceModel(object):
         if nested:
             hierarchy, levels, logsum_scales, bottom_flags = self._flatten()
             raw_result, logsum = worker_nested_sample(
-                utility_table, hierarchy, levels, logsum_scales, bottom_flags, n_draws, random_seed,
-                scale_utilities=scale_utilities
+                utility_table, hierarchy, levels, logsum_scales, bottom_flags, n_draws, random_seed, scale_utilities
             )
         else:
             raw_result, logsum = worker_multinomial_sample(utility_table, n_draws, random_seed)
@@ -558,7 +557,7 @@ class ChoiceModel(object):
 
     def run_stochastic(self, *, n_threads: int = 1, clear_scope: bool = True, logger: Logger = None,
                        group: Hashable = None, scale_utilities: bool = True,
-                       check_infeasible: bool = True) -> Tuple[pd.DataFrame, pd.Series]:
+                       check_infeasible: bool = True) -> Tuple[pd.DataFrame, pd.Series, pd.DataFrame]:
         """For each record, compute the probability distribution of the logit model. A DataFrame will be returned whose
         columns match the sorted list of node names (alternatives) in the model. Probabilities over all alternatives for
         each record will sum to 1.0.
@@ -573,18 +572,19 @@ class ChoiceModel(object):
                 if the group name is not defined.
             scale_utilities (bool, optional): Defaults to ``True``. For a nested model, if True then lower-level
                 utilities will be divided by the logsum scale of the parent nest. If False, no scaling is performed.
-                This is entirely dependant on the reported form of estimated model parameters.
+                This is entirely dependent on the reported form of estimated model parameters.
             check_infeasible (bool, optional): Defaults to ``True``. A flag to check for infeasible solutions (i.e.,
                 probabilities are 0 for all choices). Set to ``False`` to disable the check and allow for cases where no
                 solutions exist.
 
         Returns:
-            Tuple[DataFrame, Series]: The first item returned is always the results of the model evaluation,
+            Tuple[DataFrame, Series, DataFrame]: The first item returned is always the results of the model evaluation,
                 representing the probabilities of each decision unit picking each choice. The columns of the result
                 table represent choices in this model; if this is a multinomial logit model then this will be a simple
                 string index. Nested logit models, however, will have a MultiIndex columns, with a number of levels
                 equal to the max depth of nesting. The second item is the top-level logsum term from the logit model,
-                for each decision unit.
+                for each decision unit. Finally, the third item is the nested logsum values from the logit model, for
+                each decision unit and each choice.
         """
         self.validate(group=group)
 
@@ -599,17 +599,17 @@ class ChoiceModel(object):
         nested = self.depth > 1
         if nested:
             hierarchy, levels, logsum_scales, bottom_flags = self._flatten()
-            raw_result, logsum = worker_nested_probabilities(
-                utility_table, hierarchy, levels, logsum_scales, bottom_flags, scale_utilities=scale_utilities,
-                check_infeasible=check_infeasible
+            raw_result, top_lvl_ls, nested_ls = worker_nested_probabilities(
+                utility_table, hierarchy, levels, logsum_scales, bottom_flags, scale_utilities, check_infeasible
             )
             result_frame = self._build_nested_stochastic_frame(raw_result)
         else:
-            raw_result, logsum = worker_multinomial_probabilities(utility_table, check_infeasible=check_infeasible)
+            raw_result, top_lvl_ls, nested_ls = worker_multinomial_probabilities(utility_table, check_infeasible)
             result_frame = pd.DataFrame(raw_result, index=self.decision_units, columns=self.choices)
-        logsum = pd.Series(logsum, index=self.decision_units)
+        top_lvl_ls = pd.Series(top_lvl_ls, index=self.decision_units)
+        nested_ls = pd.DataFrame(nested_ls, index=self.decision_units, columns=self.choices)
 
-        return result_frame, logsum
+        return result_frame, top_lvl_ls, nested_ls
 
     def _build_nested_stochastic_frame(self, raw_result: NDArray) -> pd.DataFrame:
         elemental_index = self.elemental_choices
